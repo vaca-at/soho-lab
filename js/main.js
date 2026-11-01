@@ -8,7 +8,7 @@ import {
 } from './data.js';
 import { PETS } from './blocky.js';
 import { Avatar, FONT } from './avatar.js';
-import { buildOffice, collide, paintScreen, paintSecond, dressDesk, SPAWN, ROOM, THEMES } from './world.js';
+import { buildOffice, collide, paintScreen, paintSecond, dressDesk, itemModel, SPAWN, ROOM, THEMES } from './world.js';
 import { Net } from './net.js';
 import { findBad } from './badwords.js';
 
@@ -166,6 +166,7 @@ const keys = new Set();
 const typing = () => /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName);
 addEventListener('keydown', (e) => {
   if (typing() || !S.entered) return;
+  if (!$('#show-modal').hidden && /^Arrow/.test(e.code)) return;
   keys.add(e.code);
   if (e.code === 'Escape') closeAll();
 });
@@ -253,7 +254,7 @@ function pick(x, y) {
   // 앉아 있으면 카메라가 내 어깨 너머라 내 몸이 먼저 맞기 쉽다 → 내 몸은 다른 게 없을 때만
   const hits = ray.intersectObjects(targets, false);
   const hit = hits.find((h) => !h.object.userData.me) || hits[0];
-  if (!hit) { closeCard(); return; }
+  if (!hit) { closeCard(); walkToPoint(); return; }
   const u = hit.object.userData;
   if (u.peer) { const p = S.peers.get(u.peer); if (p) openCard(p.seat, u.peer); return; }
   if (u.me) { openCard(S.seat, 'me'); return; }
@@ -264,6 +265,27 @@ function pick(x, y) {
   else if (u.kind === 'printer') doTrip(ACTIONS.find((a) => a.id === 't_print'));
   else if (u.kind === 'water') doTrip(ACTIONS.find((a) => a.id === 't_water'));
   else if (u.kind === 'board') openModal('guide-modal');
+}
+
+// 바닥을 누르면 그곳까지 걸어가요 (누른 곳에 동그란 표시)
+const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const marker = new THREE.Mesh(new THREE.RingGeometry(0.22, 0.32, 32), new THREE.MeshBasicMaterial({ color: '#ffb35c', transparent: true, opacity: 0.9, depthWrite: false }));
+marker.rotation.x = -Math.PI / 2;
+marker.visible = false;
+scene.add(marker);
+function hideMarker() { marker.visible = false; }
+function walkToPoint() {
+  if (!me) return;
+  const p = ray.ray.intersectPlane(floorPlane, new THREE.Vector3());
+  if (!p) return;
+  p.x = Math.max(ROOM.minX + 0.4, Math.min(ROOM.maxX - 0.4, p.x));
+  p.z = Math.max(ROOM.minZ + 0.4, Math.min(ROOM.maxZ - 0.4, p.z));
+  stopTour();
+  tripToken++;
+  if (S.sitting) standUp();
+  marker.position.set(p.x, 0.02, p.z);
+  marker.visible = true;
+  S.walkTo = { x: p.x, z: p.z, t: 0, best: Infinity, stuck: 0, soft: true, then: hideMarker };
 }
 
 // ───────── 자리 ─────────
@@ -804,6 +826,8 @@ const TILE_COLORS = ['#e2603d', '#2f8a6a', '#3d6fc4', '#8a5ac4', '#c49a2f', '#c4
 function openCard(i, who) {
   if (i < 0 || i == null) { if (who === 'me') { openDesk(); } return; }
   const o = who && who !== 'me' ? who : ownerOf(i);
+  const opf = o === 'me' ? myPf() : o ? S.peers.get(o)?.pf : null;
+  if (opf?.links?.length) { openShowcase(o); return; }
   cardFor = { seat: i, peer: o && o !== 'me' ? o : null };
   const body = $('#card-body');
   if (!o) {
@@ -860,6 +884,7 @@ function openModal(id) { $('#' + id).hidden = false; }
 function closeModal(id) {
   $('#' + id).hidden = true;
   if (id === 'peek-modal') $('#peek-iframe').src = 'about:blank';
+  if (id === 'show-modal') $('#show-stage').innerHTML = '';
   if (id === 'creator') stopPreview();
   if (id === 'desk-modal') {
     $('#desk-modal').classList.remove('look-desk');
@@ -867,7 +892,7 @@ function closeModal(id) {
     if (S.sitting) camBehind(office.seats[S.seat].ry, 3.4);
   }
 }
-function closeAll() { ['desk-modal', 'peek-modal', 'floor-modal', 'guide-modal', 'seat-modal', 'fridge-modal', 'browse-modal', 'shop-modal'].forEach(closeModal); if (!$('#creator').hidden) closeModal('creator'); closeCard(); $('#menu').hidden = true; }
+function closeAll() { ['desk-modal', 'peek-modal', 'floor-modal', 'guide-modal', 'seat-modal', 'fridge-modal', 'show-modal', 'shop-modal'].forEach(closeModal); if (!$('#creator').hidden) closeModal('creator'); closeCard(); $('#menu').hidden = true; }
 document.addEventListener('click', (e) => {
   const c = e.target.closest('[data-close]');
   if (c) { const id = c.dataset.close; if (id === 'card') closeCard(); else closeModal(id); }
@@ -1010,6 +1035,46 @@ function buy(kind, it) {
   renderXp();
   return true;
 }
+// 아이템 미리보기 그림: 작은 화면 하나로 차례차례 그려서 그림 주소로 저장해 둬요
+const thumbs = new Map();
+let thumbR = null, thumbQ = [], thumbBusy = false;
+function thumbOf(kind, id, img) {
+  const key = kind + ':' + id;
+  if (thumbs.has(key)) { img.src = thumbs.get(key); return; }
+  thumbQ.push([key, kind, id, img]);
+  if (!thumbBusy) { thumbBusy = true; requestAnimationFrame(drainThumbs); }
+}
+function drainThumbs() {
+  if (!thumbR) {
+    const c = document.createElement('canvas');
+    thumbR = { r: new THREE.WebGLRenderer({ canvas: c, antialias: true, alpha: true, preserveDrawingBuffer: true }), sc: new THREE.Scene(), cm: new THREE.PerspectiveCamera(30, 4 / 3, 0.01, 50) };
+    thumbR.r.setSize(240, 180, false);
+    thumbR.r.toneMapping = THREE.ACESFilmicToneMapping;
+    thumbR.sc.environment = scene.environment;
+    thumbR.sc.environmentIntensity = 0.6;
+    thumbR.sc.add(new THREE.HemisphereLight('#f0f2ff', '#4a3a2e', 1.6));
+    const d = new THREE.DirectionalLight('#fff4e6', 1.8); d.position.set(2, 4, 3); thumbR.sc.add(d);
+  }
+  const t0 = performance.now();
+  while (thumbQ.length && performance.now() - t0 < 24) {
+    const [key, kind, id, img] = thumbQ.shift();
+    if (!thumbs.has(key)) {
+      const m = itemModel(kind, id);
+      thumbR.sc.add(m);
+      const b = new THREE.Box3().setFromObject(m), c = b.getCenter(new THREE.Vector3()), sz = b.getSize(new THREE.Vector3());
+      const r = Math.max(sz.x, sz.y * 1.25, sz.z) || 0.3;
+      thumbR.cm.position.set(c.x + r * 1.1, c.y + r * 0.85, c.z + r * 1.9);
+      thumbR.cm.lookAt(c);
+      thumbR.r.render(thumbR.sc, thumbR.cm);
+      thumbs.set(key, thumbR.r.domElement.toDataURL('image/png'));
+      thumbR.sc.remove(m);
+      m.traverse((o) => { if (o.isMesh && o.geometry.type !== 'BoxGeometry') o.geometry.dispose(); });
+    }
+    img.src = thumbs.get(key);
+  }
+  if (thumbQ.length) requestAnimationFrame(drainThumbs); else thumbBusy = false;
+}
+
 function shopCard(kind, it, selected, onPick) {
   const owned = S.owned.has(shopKey(kind, it.id));
   const locked = !owned && lv() < it.lv;
@@ -1017,7 +1082,8 @@ function shopCard(kind, it, selected, onPick) {
   b.type = 'button';
   b.className = `shop-card tier${it.tier}${owned ? ' owned' : ''}${locked ? ' locked' : ''}`;
   b.setAttribute('aria-pressed', !!selected);
-  b.innerHTML = `<span class="nm">${esc(it.name)}</span>${it.cap ? `<small>${esc(it.cap)}</small>` : ''}<span class="pr">${owned ? (selected ? '놓는 중' : '가지고 있음') : locked ? `🔒 Lv ${it.lv}` : `${it.price.toLocaleString()} P`}</span>`;
+  b.innerHTML = `<img class="thumb" alt="" width="240" height="180"><span class="nm">${esc(it.name)}</span><span class="pr">${owned ? (selected ? '놓는 중' : '가지고 있음') : locked ? `🔒 Lv ${it.lv}` : `${it.price.toLocaleString()} P`}</span>`;
+  thumbOf(kind, it.id, b.querySelector('.thumb'));
   b.onclick = () => { if (!owned && !buy(kind, it)) return; onPick(); };
   return b;
 }
@@ -1264,35 +1330,100 @@ $('#creator-done').onclick = () => {
 };
 
 // ───────── 오른쪽 메뉴: 내 웹 올리기 · 웹 둘러보기 · 상점 ─────────
-$('#btn-upload').onclick = () => openDesk('links');
-$('#btn-browse').onclick = () => {
-  const people = [['me', myPf(), S.seat], ...[...S.peers.entries()].map(([id, p]) => [id, p.pf, p.seat])].filter(([, pf]) => pf.links?.length);
-  const el = $('#browse-list');
-  el.innerHTML = people.length ? '' : '<p class="c-empty">아직 이 층에 올라온 결과물이 없어요. 내 웹 올리기로 첫 번째가 되어 보세요.</p>';
-  for (const [who, pf, seat] of people) {
-    const row = document.createElement('div');
-    row.className = 'browse-row';
-    row.innerHTML = `<div class="b-who"><b>${esc(pf.n)}${who === 'me' ? ' (나)' : ''}</b><small>${seat >= 0 ? `${seat + 1}번 책상 · ` : ''}Lv ${pf.lv || 1}</small></div>`;
-    const grid = document.createElement('div');
-    grid.className = 'b-links';
-    pf.links.slice(0, MAX_LINKS).forEach((l, k) => {
-      const host = hostOf(l.u);
-      const c = document.createElement('div');
-      c.className = 'c-link';
-      c.innerHTML = `<span class="c-tile" style="background:${TILE_COLORS[(host.length + k) % TILE_COLORS.length]}">${esc((l.t || host || '?').trim()[0] || '?')}</span>
-        <div><b>${esc(l.t || host)}</b><span class="host">${esc(host)}</span>${l.d ? `<p>${esc(l.d)}</p>` : ''}</div>
-        <div class="acts"><button class="ghost small-btn">미리보기</button><a class="primary small-btn" href="${esc(l.u)}" target="_blank" rel="noopener noreferrer">접속하기 ↗</a></div>`;
-      c.querySelector('button').onclick = () => { closeModal('browse-modal'); peek(l); };
-      grid.append(c);
-    });
-    row.append(grid);
-    el.append(row);
+// 내 웹 자랑: 올린 결과물이 있으면 내 쇼케이스(◀ ▶ 로 다른 분도), 없으면 올리는 칸
+$('#btn-web').onclick = () => (myPf().links?.length ? openShowcase('me') : openDesk('links'));
+
+// ───────── 결과물 쇼케이스 (B): 미리보기는 그 사이트의 OG 이미지, 양옆 ◀ ▶ 로 다른 사람 ─────────
+const show = { list: [], i: 0, k: 0, live: false };
+const ogCache = new Map();
+// 결과물을 올린 사람만, 자리 번호 순
+function showPeople() {
+  const all = [['me', myPf(), S.seat], ...[...S.peers.entries()].map(([id, p]) => [id, p.pf, p.seat])];
+  return all.filter(([, pf]) => pf.links?.length).sort((a, b) => (a[2] < 0 ? 99 : a[2]) - (b[2] < 0 ? 99 : b[2]));
+}
+function openShowcase(who, k = 0) {
+  const list = showPeople();
+  if (!list.length) { toast('아직 이 층에 올라온 결과물이 없어요. 내 웹 올리기로 첫 번째가 되어 보세요'); return; }
+  closeCard();
+  Object.assign(show, { list, i: Math.max(0, list.findIndex((x) => x[0] === who)), k, live: false });
+  renderShow();
+  openModal('show-modal');
+}
+function stepShow(d) {
+  show.list = showPeople();
+  if (!show.list.length) { closeModal('show-modal'); return; }
+  show.i = (show.i + d + show.list.length) % show.list.length;
+  show.k = 0; show.live = false;
+  renderShow();
+}
+function fetchOg(u) {
+  if (ogCache.has(u)) return ogCache.get(u);
+  const p = RELAY_URL ? fetch(`${RELAY_URL}/og?u=${encodeURIComponent(u)}`, { signal: AbortSignal.timeout(7000) }).then((r) => r.json()).catch(() => ({ ok: false })) : Promise.resolve({ ok: false });
+  ogCache.set(u, p);
+  return p;
+}
+function renderShow() {
+  const [who, pf, seat] = show.list[show.i] || [];
+  if (!pf) return;
+  const mine = who === 'me';
+  const sit = mine ? S.sitting : !!S.peers.get(who)?.st?.sit;
+  $('#show-seat').textContent = seat >= 0 ? `DESK ${String(seat + 1).padStart(2, '0')}${mine ? ' · 내 책상' : ''}` : '';
+  $('#show-name').textContent = pf.n;
+  $('#show-lv').textContent = `Lv ${pf.lv || 1}`;
+  $('#show-status').className = 'c-status' + (sit ? '' : ' away');
+  $('#show-status span').textContent = sit ? '책상에서 코딩 중' : '잠깐 자리 비움';
+  const now = nowOf(pf);
+  $('#show-now').textContent = now ? `지금 · ${now}` : '';
+  $('#show-edit').hidden = !mine;
+  const many = show.list.length > 1;
+  $('#show-prev').hidden = $('#show-next').hidden = !many;
+  $('#show-count').textContent = many ? `${show.i + 1} / ${show.list.length}명 · ◀ ▶ 또는 키보드 ← → 로 다른 분 결과물` : '이 층에서 결과물을 올린 분은 지금 이분뿐이에요';
+  const links = pf.links.slice(0, MAX_LINKS);
+  show.k = Math.min(show.k, links.length - 1);
+  const ol = $('#show-list');
+  ol.innerHTML = '';
+  links.forEach((l, k) => {
+    const host = hostOf(l.u);
+    const li = document.createElement('li');
+    li.innerHTML = `<button type="button" aria-pressed="${k === show.k}"><span class="c-tile" style="background:${TILE_COLORS[(host.length + k) % TILE_COLORS.length]}">${esc((l.t || host || '?').trim()[0] || '?')}</span><span class="t"><b>${esc(l.t || host)}</b><small>${esc(host)}</small></span></button>`;
+    li.querySelector('button').onclick = () => { show.k = k; show.live = false; renderShow(); };
+    ol.append(li);
+  });
+  const l = links[show.k];
+  const u = safeUrl(l.u), host = hostOf(u);
+  $('#show-url').textContent = u.replace(/^https?:\/\//, '');
+  $('#show-open').href = u;
+  $('#show-desc').textContent = l.d || '';
+  $('#show-live').textContent = show.live ? 'OG 이미지로 보기' : '실제 화면으로 보기';
+  const stage = $('#show-stage');
+  const tile = `<div class="show-fallback"><span class="c-tile big" style="background:${TILE_COLORS[(host.length + show.k) % TILE_COLORS.length]}">${esc((l.t || host || '?').trim()[0] || '?')}</span><b>${esc(l.t || host)}</b><small>${esc(host)}</small></div>`;
+  if (show.live) {
+    // 실제 화면: 막아 둔 사이트는 비어 보여요. 이 사이트 자신은 넣지 않아요
+    stage.innerHTML = `<p class="show-note">불러오는 중… 화면이 비어 보이면 그 사이트가 미리보기를 막아 둔 거예요. <b>접속하기</b>로 열어 주세요.</p><iframe title="${esc(l.t || host)} 실제 화면" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" referrerpolicy="no-referrer"></iframe>`;
+    stage.querySelector('iframe').src = new URL(u).origin === location.origin ? 'about:blank' : u;
+    return;
   }
-  openModal('browse-modal');
-};
+  stage.innerHTML = tile;
+  const want = u;
+  fetchOg(u).then((og) => {
+    if (!og?.ok || $('#show-modal').hidden || show.live || safeUrl(show.list[show.i]?.[1].links?.[show.k]?.u) !== want) return;
+    if (!l.d && og.desc) $('#show-desc').textContent = og.desc;
+    if (!og.image) return;
+    const img = new Image();
+    img.alt = `${l.t || host} 미리보기 이미지`;
+    img.referrerPolicy = 'no-referrer';
+    img.onload = () => { if (safeUrl(show.list[show.i]?.[1].links?.[show.k]?.u) === want && !show.live) { stage.innerHTML = ''; stage.append(img); } };
+    img.src = og.image;
+  });
+}
+$('#show-prev').onclick = () => stepShow(-1);
+$('#show-next').onclick = () => stepShow(1);
+$('#show-live').onclick = () => { show.live = !show.live; renderShow(); };
+$('#show-edit').onclick = () => { closeModal('show-modal'); openDesk('links'); };
+addEventListener('keydown', (e) => { if ($('#show-modal').hidden || typing()) return; if (e.key === 'ArrowLeft') { stepShow(-1); e.preventDefault(); } if (e.key === 'ArrowRight') { stepShow(1); e.preventDefault(); } }, true);
+
 // ───────── 화면 위 단추 ─────────
 $('#floor-chip').onclick = openFloors;
-$('#btn-desk').onclick = () => openDesk();
 $('#btn-shop').onclick = () => openDesk('deco');
 $('#xp-chip').onclick = openShop;
 $('#btn-store').onclick = openShop;
@@ -1305,6 +1436,8 @@ $('#menu').addEventListener('click', (e) => {
   $('#menu').hidden = true;
   const m = b.dataset.menu;
   if (m === 'guide') openModal('guide-modal');
+  if (m === 'browse') openShowcase(null);
+  if (m === 'memo') openDesk('memo');
   if (m === 'floor') openFloors();
   if (m === 'others') {
     S.othersMemo = !S.othersMemo;
@@ -1374,6 +1507,7 @@ function updateMe(dt) {
     S.walkTo = null;
     stopTour();
     tripToken++; // 걸어가던 동작은 멈춰요
+    hideMarker();
     if (S.sitting) standUp();
     const fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw);
     const rx = Math.cos(cam.yaw), rz = -Math.sin(cam.yaw);
@@ -1396,7 +1530,8 @@ function updateMe(dt) {
       collide(pos, office.colliders);
       me.group.rotation.y = lerpAngle(me.group.rotation.y, Math.atan2(dx, dz), Math.min(1, dt * 10));
       // 막혀서 0.8초 동안 가까워지지 않으면 그 자리로 바로 간다
-      if (d < w.best - 0.05) { w.best = d; w.stuck = 0; } else if ((w.stuck += dt) > 0.8) { pos.x = w.x; pos.z = w.z; }
+      // 막혀서 0.8초 동안 가까워지지 않으면: 자리 · 동작이면 그 자리로 바로 가고, 바닥을 눌러 걷던 거면 그 앞에서 멈춰요
+      if (d < w.best - 0.05) { w.best = d; w.stuck = 0; } else if ((w.stuck += dt) > 0.8) { if (w.soft) { S.walkTo = null; hideMarker(); } else { pos.x = w.x; pos.z = w.z; } }
     }
   }
   me.speed = speed;

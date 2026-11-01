@@ -14,17 +14,17 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="style.css?v=20261101f">
+<link rel="stylesheet" href="style.css?v=20261101i">
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
-  "./js/data.js": "./js/data.js?v=20261101f",
-  "./js/blocky.js": "./js/blocky.js?v=20261101f",
-  "./js/avatar.js": "./js/avatar.js?v=20261101f",
-  "./js/world.js": "./js/world.js?v=20261101f",
-  "./js/net.js": "./js/net.js?v=20261101f",
-  "./js/badwords.js": "./js/badwords.js?v=20261101f"
+  "./js/data.js": "./js/data.js?v=20261101i",
+  "./js/blocky.js": "./js/blocky.js?v=20261101i",
+  "./js/avatar.js": "./js/avatar.js?v=20261101i",
+  "./js/world.js": "./js/world.js?v=20261101i",
+  "./js/net.js": "./js/net.js?v=20261101i",
+  "./js/badwords.js": "./js/badwords.js?v=20261101i"
 } }
 </script>
 </head>
@@ -74,9 +74,9 @@
   <form id="desk-form" class="sheet wide-sheet" novalidate>
     <header class="panel-head"><h2>내 책상</h2><button type="button" class="icon-btn" data-close="desk-modal" aria-label="닫기">✕</button></header>
     <div id="desk-tabs" class="tabs" role="tablist">
+      <button type="button" role="tab" data-tab="deco">책상 꾸미기</button>
       <button type="button" role="tab" data-tab="memo">머리 위 메모</button>
       <button type="button" role="tab" data-tab="links">자랑하는 결과물</button>
-      <button type="button" role="tab" data-tab="deco">책상 꾸미기</button>
     </div>
     <section data-pane="memo" class="group">
       <p class="rule"><b>비속어 · 나쁜 말 금지</b> 메모는 같은 층 모두의 머리 위에 떠요. 욕설 · 혐오 · 성적인 말이 들어가면 저장되지 않아요.</p>
@@ -136,13 +136,30 @@
   </div>
 </div>
 
-<!-- 웹들 둘러보기 -->
-<div id="browse-modal" class="modal" hidden>
-  <div class="sheet wide-sheet">
-    <header class="panel-head"><h2>웹 둘러보기</h2><button class="icon-btn" data-close="browse-modal" aria-label="닫기">✕</button></header>
-    <p class="sub">지금 이 층에서 일하는 분들이 자랑하는 결과물이에요. 미리보기로 구경하거나 바로 접속해 보세요.</p>
-    <div id="browse-list" class="browse-list"></div>
+<!-- 결과물 쇼케이스: 왼쪽 결과물 목록 · 오른쪽 큰 미리보기 · 양옆 ◀ ▶ 로 다른 사람 -->
+<div id="show-modal" class="modal" hidden>
+  <button type="button" class="show-nav prev" id="show-prev" aria-label="이전 사람">◀</button>
+  <div class="show panel-solid" role="dialog" aria-labelledby="show-name">
+    <header class="show-head">
+      <div class="show-who">
+        <span class="c-seat" id="show-seat"></span>
+        <span class="show-namerow"><b id="show-name"></b><small class="c-lv" id="show-lv"></small><span class="c-status" id="show-status"><i></i><span></span></span></span>
+        <span class="show-now" id="show-now"></span>
+      </div>
+      <button type="button" class="ghost small-btn" id="show-edit" hidden>내 웹 고치기</button>
+      <button type="button" class="icon-btn" data-close="show-modal" aria-label="닫기">✕</button>
+    </header>
+    <div class="show-body">
+      <ol class="show-list" id="show-list"></ol>
+      <section class="show-view">
+        <div class="show-bar"><span class="dots"><i></i><i></i><i></i></span><span class="show-url" id="show-url"></span><a class="primary small-btn" id="show-open" target="_blank" rel="noopener noreferrer">접속하기 ↗</a></div>
+        <div class="show-stage" id="show-stage"></div>
+        <div class="show-foot"><p id="show-desc"></p><button type="button" class="ghost small-btn" id="show-live">실제 화면으로 보기</button></div>
+      </section>
+    </div>
+    <p class="show-count" id="show-count"></p>
   </div>
+  <button type="button" class="show-nav next" id="show-next" aria-label="다음 사람">▶</button>
 </div>
 
 <!-- 상점 -->
@@ -205,12 +222,15 @@
     </div>
     <div class="hud-right">
       <button id="btn-char" class="glass icon-btn"><span class="lbl">☺</span><small class="cap">캐릭터</small></button>
-      <button id="btn-shop" class="glass icon-btn"><span class="lbl">🛒</span><small class="cap">책상 꾸미기</small></button>
-      <button id="btn-desk" class="glass icon-btn"><span class="lbl">✎</span><small class="cap">메모</small></button>
+      <button id="btn-shop" class="glass icon-btn"><span class="lbl">🪴</span><small class="cap">책상 꾸미기</small></button>
+      <button id="btn-web" class="glass icon-btn"><span class="lbl">🌐</span><small class="cap">내 웹 자랑</small></button>
+      <button id="btn-store" class="glass icon-btn"><span class="lbl">🛒</span><small class="cap">상점</small></button>
       <button id="btn-menu" class="glass icon-btn"><span class="lbl">☰</span><small class="cap">메뉴</small></button>
     </div>
   </div>
   <div id="menu" class="glass menu" hidden>
+    <button data-menu="browse">웹 둘러보기</button>
+    <button data-menu="memo">메모 고치기</button>
     <button data-menu="guide">사용법</button>
     <button data-menu="floor">다른 층으로</button>
     <button data-menu="others" id="menu-others">다른 분 메모 숨기기</button>
@@ -221,15 +241,10 @@
     <div id="memo-bar" class="glass memo-bar"></div>
     <nav id="actions" class="glass"></nav>
   </div>
-  <nav id="left-acts" class="side-acts left glass" aria-label="걸어갔다 오기"></nav>
-  <nav id="right-acts" class="side-acts right glass" aria-label="웹">
-    <button id="btn-upload" class="side-btn"><span>내 웹 올리기</span><small class="cap">결과물 3개 자랑</small></button>
-    <button id="btn-browse" class="side-btn"><span>웹 둘러보기</span><small class="cap">이 층 사람들 결과물</small></button>
-    <button id="btn-store" class="side-btn"><span>상점</span><small class="cap">포인트로 책상 아이템</small></button>
-  </nav>
+  <nav id="left-acts" class="side-acts right glass" aria-label="걸어갔다 오기"></nav>
   <div id="joystick"><div class="knob"></div></div>
 </section>
 
-<script type="module" src="js/main.js?v=20261101f"></script>
+<script type="module" src="js/main.js?v=20261101i"></script>
 </body>
 </html>

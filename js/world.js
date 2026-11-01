@@ -1189,3 +1189,38 @@ export function collide(pos, colliders, radius = 0.32) {
   pos.x = Math.max(ROOM.minX, Math.min(ROOM.maxX, pos.x));
   pos.z = Math.max(ROOM.minZ, Math.min(ROOM.maxZ, pos.z));
 }
+
+// ───────── 상점 미리보기: 아이템 하나만 따로 만든 모델 ─────────
+let _demoScreen;
+function demoScreen() {
+  if (_demoScreen) return _demoScreen;
+  _demoScreen = canvasTex(256, 150, (g, w, h) => {
+    g.fillStyle = '#1a1e2b'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#12151f'; g.fillRect(0, 0, w, 18);
+    const r = rng(3);
+    for (let i = 0; i < 9; i++) { let x = 16 + (i % 3) * 10; for (let k = 0; k < 3; k++) { const len = 12 + r() * 40; g.fillStyle = CODE_COLORS[(r() * CODE_COLORS.length) | 0]; g.fillRect(x, 26 + i * 13, len, 6); x += len + 6; } }
+  });
+  return _demoScreen;
+}
+export function itemModel(kind, id) {
+  const g = new THREE.Group();
+  if (kind === 'mon') {
+    const t = demoScreen();
+    if (id === 'l') monitor(g, t, 1.2, 0.7, 0);
+    else if (id === 'studio') monitor(g, t, 1.05, 0.6, 0, 0, true);
+    else if (id === 'd') { monitor(g, t, 0.88, 0.515, -0.5, 0.18); monitor(g, t, 0.88, 0.515, 0.5, -0.18); }
+    else if (id === 'v') { monitor(g, t, 0.88, 0.515, -0.3, 0.08); monitor(g, t, 0.46, 0.79, 0.55, -0.2); }
+    else if (id === 'w') { const m = monitor(g, t, 0.98, 0.575, 0.18); box(m.group, '#16181e', 0.42, 0.635, 0.04, -0.67, m.cy, 0.02); }
+    else monitor(g, t, 0.88, 0.515, 0);
+  } else if (kind === 'kb') keyboard(g, id);
+  else if (kind === 'chair') g.add(chairOf(id, '#3d4452'));
+  else if (id === 'blanket' || id === 'cushion') { const c = chairOf('basic', '#3d4452'); chairItem(c, id, 'basic'); g.add(c); }
+  else if (id === 'postit' || id === 'lightbar' || id === 'webcam') {
+    const m = monitor(g, demoScreen(), 0.88, 0.515, 0);
+    if (id === 'postit') for (const [k, c] of ['#ffe57a', '#ff9fb2', '#9fe0c0'].entries()) box(m.group, c, 0.09, 0.09, 0.004, m.w / 2 - 0.06 - k * 0.1, m.top - 0.1 - (k % 2) * 0.03, 0.045).rotation.z = (k - 1) * 0.12;
+    if (id === 'lightbar') { box(m.group, '#2a2c33', 0.5, 0.03, 0.05, 0, m.top + 0.02, 0.05); box(m.group, '#fff4dc', 0.46, 0.006, 0.03, 0, m.top + 0.004, 0.05, { emissive: '#ffe8b8', emissiveIntensity: 2 }); }
+    if (id === 'webcam') { box(m.group, '#1d1f24', 0.12, 0.04, 0.05, -0.15, m.top + 0.025, 0.03); box(m.group, '#3a5f8a', 0.025, 0.025, 0.01, -0.15, m.top + 0.025, 0.056); }
+  } else if (id === 'neon') { const n = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.28), new THREE.MeshBasicMaterial({ map: neonTex(), transparent: true, toneMapped: false })); g.add(n); box(g, '#2a2c33', 1.2, 0.36, 0.02, 0, 0, -0.02); }
+  else if (ITEM[id]) ITEM[id](g, 1, []);
+  return g;
+}

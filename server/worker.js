@@ -16,9 +16,40 @@ function cors(req) {
 }
 const json = (req, body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', ...cors(req) } });
 
+// 결과물 미리보기용 OG 정보: 그 사이트의 og:image · 제목 · 설명 (하루 동안 캐시)
+function metaOf(html, key) {
+  const tag = html.match(new RegExp(`<meta[^>]+(?:property|name)\\s*=\\s*["']${key}["'][^>]*>`, 'i'))?.[0];
+  return (tag?.match(/content\s*=\s*["']([^"']*)["']/i)?.[1] || '').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim();
+}
+async function ogInfo(u) {
+  const r = await fetch(u, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SohoLabPreview/1.0; +https://soho-lab.site)', Accept: 'text/html' }, redirect: 'follow' });
+  if (!(r.headers.get('content-type') || '').includes('html')) return { ok: false };
+  const html = (await r.text()).slice(0, 400000);
+  const abs = (v) => { try { return v ? safeUrl(new URL(v, r.url).href) : ''; } catch { return ''; } };
+  return {
+    ok: true,
+    image: abs(metaOf(html, 'og:image') || metaOf(html, 'twitter:image')),
+    title: str(metaOf(html, 'og:title') || html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]?.trim(), 80),
+    desc: str(metaOf(html, 'og:description') || metaOf(html, 'description'), 160),
+  };
+}
+
 export default {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url);
+    if (url.pathname === '/og') {
+      const u = safeUrl(url.searchParams.get('u'));
+      if (!u) return json(req, { ok: false }, 400);
+      const key = new Request('https://og-cache.soho-lab/' + encodeURIComponent(u));
+      const hit = await caches.default.match(key);
+      let body;
+      if (hit) body = await hit.json();
+      else {
+        try { body = await ogInfo(u); } catch { body = { ok: false }; }
+        ctx.waitUntil(caches.default.put(key, new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=86400' } })));
+      }
+      return json(req, body);
+    }
     if (url.pathname === '/ws') {
       const origin = req.headers.get('Origin');
       if (origin && !ORIGINS.includes(origin)) return new Response('forbidden', { status: 403 });

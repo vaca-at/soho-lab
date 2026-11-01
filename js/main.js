@@ -1354,10 +1354,10 @@ function renderCreator() {
   }
   $('#body-name').textContent = BODIES.find((B) => B.id === S.draft.body)?.label || '';
   chips($('#opt-gender'), GENDERS, 'gender', (g) => g.name);
-  chips($('#opt-type'), CHAR_TYPES, 'type', (t) => hairName(t, S.draft.gender), (t) => t.color);
-  chips($('#opt-outfit'), OUTFITS.filter((o) => !o.hidden), 'outfit', (o) => o.name, (o) => o.cap);
+  chips($('#opt-type'), CHAR_TYPES, 'type', (t) => hairName(t, S.draft.gender));
+  chips($('#opt-outfit'), OUTFITS.filter((o) => !o.hidden), 'outfit', (o) => o.name);
   chips($('#opt-acc'), ACCESSORIES, 'acc');
-  chips($('#opt-pet'), PET_IDS.map((id) => PETS.find((p) => p.id === id)).filter(Boolean), 'pet', (p) => p.name + (NEW_PETS.has(p.id) ? ' NEW' : ''), (p) => p.cap);
+  chips($('#opt-pet'), PET_IDS.map((id) => PETS.find((p) => p.id === id)).filter(Boolean), 'pet', (p) => p.name);
   const sk = $('#opt-skin');
   sk.innerHTML = '';
   for (const c of SKIN_TONES) {

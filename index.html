@@ -1,1 +1,180 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>소호랩 SOHO LAB</title>
+<meta name="description" content="퇴근 후 혼자 개발하는 1인 개발자들이 모이는 3D 사무실. 채팅 없이 각자 일하고, 머리 위 메모로 인사하고, 책상을 눌러 서로의 결과물을 구경해요.">
+<meta property="og:title" content="소호랩 SOHO LAB">
+<meta property="og:description" content="혼자지만 같이 일하는 1인 개발자 사무실. 층마다 20자리.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://soho-lab.site/">
+<meta name="theme-color" content="#14161c">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div id="fade"></div>
 
+<!-- 로딩 -->
+<section id="loading">
+  <div class="ld">
+    <p class="ld-logo">SOHO LAB</p>
+    <h1>소호랩</h1>
+    <p class="ld-sub">혼자지만 같이 일하는 사무실</p>
+    <div class="ld-bar"><i></i></div>
+  </div>
+</section>
+
+<!-- 첫 화면: 출근하기 -->
+<section id="intro" class="screen" hidden>
+  <div class="intro-card panel">
+    <p class="eyebrow">SOHO LAB · 1인 개발자 공유 오피스</p>
+    <h1>퇴근 후,<br>같이 혼자 일해요</h1>
+    <p class="lead">층마다 책상 20개. 채팅은 없어요. 하고 싶은 말은 메모로 적어 두면 머리 위에 떠요. 다른 분 책상을 누르면 만들고 있는 걸 구경할 수 있어요.</p>
+    <div class="me-row">
+      <span class="me-dot"></span>
+      <span><b id="intro-name"></b><small id="intro-now" class="muted"></small></span>
+    </div>
+    <div class="intro-actions">
+      <button id="btn-enter" class="primary"><span class="lbl" id="enter-label">출근하기</span><small class="cap" id="enter-cap">빈 책상에 앉아요</small></button>
+      <div class="row2">
+        <button id="intro-char" class="ghost"><span class="lbl">캐릭터</span><small class="cap">모습 · 닉네임</small></button>
+        <button id="intro-desk" class="ghost"><span class="lbl">내 책상</span><small class="cap">하는 일 · 메모 · 결과물</small></button>
+        <button id="intro-floor" class="ghost"><span class="lbl">층 고르기</span><small class="cap">1층 ~ 10층</small></button>
+      </div>
+    </div>
+    <p class="fine">로그인 없이 이 기기에 저장돼요. 결과물 링크와 메모는 같은 층 사람들에게 보여요.</p>
+  </div>
+</section>
+
+<!-- 캐릭터 꾸미기 -->
+<section id="creator" class="screen" hidden>
+  <div class="creator panel-solid">
+    <div class="preview-wrap"><canvas id="preview"></canvas><p class="hint">끌어서 돌려 보세요</p></div>
+    <div class="options">
+      <header class="panel-head">
+        <h2>내 캐릭터</h2>
+        <button class="icon-btn" data-close="creator" aria-label="닫기">✕</button>
+      </header>
+      <label class="field" for="nick">닉네임
+        <span class="row"><input id="nick" maxlength="12" autocomplete="off"><button id="nick-dice" class="ghost small" type="button">다른 이름</button></span>
+      </label>
+      <div class="group"><h3>머리</h3><div id="opt-gender" class="chips"></div></div>
+      <div class="group"><h3>캐릭터</h3><div id="opt-type" class="chips"></div></div>
+      <div class="group"><h3>피부색</h3><div id="opt-skin" class="swatches"></div></div>
+      <div class="group"><h3>옷</h3><div id="opt-outfit" class="chips"></div></div>
+      <div class="group"><h3>소품</h3><div id="opt-acc" class="chips"></div></div>
+      <div class="group"><h3>책상 친구 <small class="muted">어디든 따라다녀요</small></h3><div id="opt-pet" class="chips"></div></div>
+      <button id="creator-done" class="primary wide"><span class="lbl">이 모습으로 일하기</span></button>
+    </div>
+  </div>
+</section>
+
+<!-- 내 책상 꾸미기 (프로필) -->
+<div id="desk-modal" class="modal" hidden>
+  <form id="desk-form" class="sheet wide-sheet">
+    <header class="panel-head"><h2>내 책상 꾸미기</h2><button type="button" class="icon-btn" data-close="desk-modal" aria-label="닫기">✕</button></header>
+    <p class="sub">책상이나 모니터를 누른 분께 보여요. 내 모니터 아래 줄에는 "지금 하는 일"이 떠요.</p>
+    <label class="field">한 줄 소개 <input id="pf-intro" maxlength="40" placeholder="예: 회사 다니며 밤에 메타버스 만드는 사람"></label>
+    <label class="field">지금 하는 일 <input id="pf-now" maxlength="40" placeholder="예: 캠핑장 메타버스 모닥불 고치는 중"></label>
+    <div class="group">
+      <h3>머리 위 메모 <small class="muted">10개까지 · 하나씩 돌아가며 떠요 · 30자</small></h3>
+      <div id="pf-memos" class="memo-grid"></div>
+    </div>
+    <div class="group">
+      <h3>내 결과물 <small class="muted">6개까지 · 누르면 구경하고 접속해요</small></h3>
+      <div id="pf-links" class="link-rows"></div>
+      <button id="pf-add" type="button" class="ghost small">+ 결과물 추가</button>
+    </div>
+    <button class="primary wide" type="submit"><span class="lbl">저장하기</span><small class="cap">이 기기에 저장되고 같은 층에 바로 보여요</small></button>
+  </form>
+</div>
+
+<!-- 책상 정보 (다른 분 · 나 · 빈 자리) -->
+<aside id="card" class="card panel" hidden>
+  <button class="icon-btn card-x" data-close="card" aria-label="닫기">✕</button>
+  <div id="card-body"></div>
+</aside>
+
+<!-- 결과물 미리보기 -->
+<div id="peek-modal" class="modal" hidden>
+  <div class="peek panel-solid">
+    <header class="peek-head">
+      <div class="peek-title"><b id="peek-title"></b><small id="peek-host" class="muted"></small></div>
+      <a id="peek-open" class="primary small-btn" target="_blank" rel="noopener noreferrer">접속하기 ↗</a>
+      <button class="icon-btn" data-close="peek-modal" aria-label="닫기">✕</button>
+    </header>
+    <div class="peek-frame">
+      <p class="peek-note">불러오는 중… 미리보기를 막아 둔 사이트는 빈 화면으로 보여요. 그럴 땐 <b>접속하기</b>로 열어 주세요.</p>
+      <iframe id="peek-iframe" title="결과물 미리보기" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-pointer-lock" allow="fullscreen; xr-spatial-tracking" referrerpolicy="no-referrer"></iframe>
+    </div>
+  </div>
+</div>
+
+<!-- 층 고르기 -->
+<div id="floor-modal" class="modal" hidden>
+  <div class="sheet">
+    <header class="panel-head"><h2>엘리베이터</h2><button class="icon-btn" data-close="floor-modal" aria-label="닫기">✕</button></header>
+    <p class="sub">층마다 책상 20개, 20명까지 들어가요. 어느 층이든 똑같은 사무실이에요.</p>
+    <div id="floor-grid" class="floor-grid"></div>
+    <p id="floor-note" class="muted small"></p>
+  </div>
+</div>
+
+<!-- 사용 안내 -->
+<div id="guide-modal" class="modal" hidden>
+  <div class="sheet">
+    <header class="panel-head"><h2>소호랩 사용법</h2><button class="icon-btn" data-close="guide-modal" aria-label="닫기">✕</button></header>
+    <ul class="guide">
+      <li><b>출근하면</b> 내 책상에 앉아 저절로 코딩해요. 실제 일은 다른 창에서 하시고, 이 창은 켜 두기만 하세요.</li>
+      <li><b>채팅은 없어요.</b> 하고 싶은 말은 <b>내 책상 꾸미기</b>에서 메모 10개로 적어 두면 머리 위에 하나씩 돌아가며 떠요. 아래 메모 줄을 누르면 그 메모를 지금 바로 띄워요.</li>
+      <li><b>책상 · 모니터 · 캐릭터를 누르면</b> 그 분이 지금 하는 일과 만든 결과물을 보고, 미리보기하거나 접속할 수 있어요.</li>
+      <li><b>걷기</b>: W A S D · 방향키 (휴대폰은 왼쪽 아래 조이스틱). 끌어서 화면 돌리기, 휠로 멀리·가까이.</li>
+      <li><b>빈 책상</b>을 누르면 그 자리로 옮길 수 있어요. 커피 머신을 누르면 커피를 마셔요. 엘리베이터를 누르면 다른 층으로 가요.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- 화면 위 단추들 -->
+<section id="hud" hidden>
+  <div class="hud-top">
+    <div class="hud-left">
+      <button id="floor-chip" class="glass chip-btn"><span class="lbl"><b id="hud-floor">1F</b><span class="people"><i class="dot"></i><span id="hud-people">1</span>/20</span></span><small class="cap">눌러서 다른 층</small></button>
+      <span id="focus-chip" class="glass mini" title="오늘 책상에 앉아 있던 시간"></span>
+      <span id="net-chip" class="glass mini warn" hidden></span>
+    </div>
+    <div class="hud-right">
+      <button id="btn-desk" class="glass icon-btn"><span class="lbl">✎</span><small class="cap">내 책상</small></button>
+      <button id="btn-char" class="glass icon-btn"><span class="lbl">☺</span><small class="cap">캐릭터</small></button>
+      <button id="btn-copy" class="glass icon-btn"><span class="lbl">🔗</span><small class="cap">링크</small></button>
+      <button id="btn-menu" class="glass icon-btn"><span class="lbl">☰</span><small class="cap">메뉴</small></button>
+    </div>
+  </div>
+  <div id="menu" class="glass menu" hidden>
+    <button data-menu="guide">사용법</button>
+    <button data-menu="floor">다른 층으로</button>
+    <button data-menu="others" id="menu-others">다른 분 메모 숨기기</button>
+    <button data-menu="leave">퇴근하기 (첫 화면)</button>
+  </div>
+  <div id="toasts"></div>
+  <div class="bottom">
+    <div id="memo-bar" class="glass memo-bar"></div>
+    <nav id="actions" class="glass"></nav>
+  </div>
+  <div id="joystick"><div class="knob"></div></div>
+</section>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

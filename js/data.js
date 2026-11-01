@@ -192,11 +192,11 @@ export const defaultDesk = () => ({ c: 'oak', ch: 'charcoal', mon: 'm', kb: 'bas
 // trip: 그 자리까지 걸어가서 pose 를 하고 내 자리로 돌아와요. pose: 동작 막대에 안 나오는 자세
 export const ACTIONS = [
   { id: 'type', name: '코딩', auto: true },
+  { id: 'wave', name: '손인사', cap: '반가워요', dur: 2.2, feed: '손을 흔들었습니다.' },
   { id: 'stretch', name: '기지개', cap: '두 팔 쭉', dur: 3, feed: '기지개를 켰습니다.' },
   { id: 'coffee', name: '커피', cap: '한 모금', dur: 3.6, feed: '커피를 한 모금 마셨습니다.' },
   { id: 'think', name: '고민', cap: '턱 괴고 생각', dur: 6, feed: '고민에 빠졌습니다.' },
   { id: 'clap', name: '박수', cap: '배포 성공!', dur: 2.6, feed: '박수를 쳤습니다.' },
-  { id: 'wave', name: '손인사', cap: '반가워요', dur: 2.2, feed: '손을 흔들었습니다.' },
   // 걸어갔다 오는 동작
   { id: 't_coffee', name: '커피 타 오기', cap: '커피 바까지', trip: 'coffee', pose: 'pour', feed: '커피를 타러 갔습니다.' },
   { id: 't_print', name: '프린트하기', cap: '프린터까지', trip: 'printer', pose: 'print', feed: '프린트하러 갔습니다.' },

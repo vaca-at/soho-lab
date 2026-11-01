@@ -269,7 +269,8 @@ export class Avatar {
     box(mug, '#f4f1ec', 0.13, 0.15, 0.13, 0, 0, 0);
     box(mug, '#6b4026', 0.11, 0.01, 0.11, 0, 0.07, 0);
     box(mug, '#f4f1ec', 0.03, 0.08, 0.03, 0.08, 0, 0);
-    mug.position.set(0, this.handY - 0.1, 0.06);
+    mug.position.set(0, this.handY - 0.3, 0.34);
+    mug.scale.setScalar(5); // 커피잔은 잘 보이게 5배
     mug.visible = false;
     this.armR.add(mug);
     this.mug = mug;

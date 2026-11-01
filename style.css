@@ -465,3 +465,15 @@ button .cap { display: block; font-size: 10.5px; line-height: 1.3; font-weight: 
 .seat-map .seat-cell span { font-size: 9.5px; }
 .seat-window { text-align: center; font-size: 12px; color: #9fc0e8; border-bottom: 2px solid rgba(159, 192, 232, .45); padding-bottom: 4px; }
 @media (max-width: 760px) { .seat-map .seat-cell span { display: none; } .seat-map .seat-cell { min-height: 30px; } }
+
+/* 로딩: 글씨만 있는 첫 화면은 없애고, 사무실이 보일 때 글씨가 함께 나와요 */
+#loading:not(.scene) { background: #0b0d13; }
+#loading:not(.scene) .ld { visibility: hidden; }
+/* 릴 위아래 화살표를 크게 */
+.reel { grid-template-rows: 20px 34px 20px; }
+.reel .rv { height: 20px; width: 100%; font-size: 16px; line-height: 20px; color: #c9cede; border-radius: 6px; }
+.reel .rv:hover { color: var(--amber); background: rgba(255, 255, 255, .06); }
+
+/* 자리 칸: 겹치지 않는 네모 */
+.seat-map .seat-cell { width: 12%; min-height: 0; aspect-ratio: 1.5 / 1; border-radius: 8px; padding: 2px; }
+.seat-island { border-radius: 10px; }

@@ -104,6 +104,7 @@ function setOffice(floor) {
   if (office?.theme.id === id) return;
   if (office) { scene.remove(office.group); office.dispose(); }
   office = buildOffice(id);
+  nav = null;
   scene.add(office.group);
   scene.background = new THREE.Color(office.theme.bg);
   applyTime();
@@ -267,6 +268,68 @@ function pick(x, y) {
   else if (u.kind === 'board') openModal('guide-modal');
 }
 
+// ───────── 길찾기: 0.4 m 칸 지도에서 책상 · 의자 · 화분 둘레에 여유를 두고 A* ─────────
+let nav = null;
+const NAV_CELL = 0.4, NAV_GAP = 0.7; // 장애물에서 띄울 거리
+function buildNav() {
+  const W = Math.ceil((ROOM.maxX - ROOM.minX) / NAV_CELL) + 1, H = Math.ceil((ROOM.maxZ - ROOM.minZ) / NAV_CELL) + 1;
+  const block = new Uint8Array(W * H);
+  const mark = (x0, x1, z0, z1) => {
+    for (let j = Math.max(0, Math.floor((z0 - ROOM.minZ) / NAV_CELL)); j <= Math.min(H - 1, Math.ceil((z1 - ROOM.minZ) / NAV_CELL)); j++)
+      for (let i = Math.max(0, Math.floor((x0 - ROOM.minX) / NAV_CELL)); i <= Math.min(W - 1, Math.ceil((x1 - ROOM.minX) / NAV_CELL)); i++) {
+        const x = ROOM.minX + i * NAV_CELL, z = ROOM.minZ + j * NAV_CELL;
+        if (x >= x0 && x <= x1 && z >= z0 && z <= z1) block[j * W + i] = 1;
+      }
+  };
+  for (const c of office.colliders) mark(c.minX - NAV_GAP, c.maxX + NAV_GAP, c.minZ - NAV_GAP, c.maxZ + NAV_GAP);
+  for (const s of office.seats) mark(s.x - 0.5, s.x + 0.5, s.z - 0.45, s.z + 0.45); // 의자
+  mark(ROOM.minX - 1, ROOM.maxX + 1, ROOM.minZ - 1, ROOM.minZ + 0.5); mark(ROOM.minX - 1, ROOM.maxX + 1, ROOM.maxZ - 0.5, ROOM.maxZ + 1);
+  mark(ROOM.minX - 1, ROOM.minX + 0.5, ROOM.minZ - 1, ROOM.maxZ + 1); mark(ROOM.maxX - 0.5, ROOM.maxX + 1, ROOM.minZ - 1, ROOM.maxZ + 1);
+  nav = { W, H, block };
+}
+function findPath(from, to) {
+  if (!nav) buildNav();
+  const { W, H, block } = nav;
+  const cell = (x, z) => [Math.max(0, Math.min(W - 1, Math.round((x - ROOM.minX) / NAV_CELL))), Math.max(0, Math.min(H - 1, Math.round((z - ROOM.minZ) / NAV_CELL)))];
+  const free = (i, j) => i >= 0 && j >= 0 && i < W && j < H && !block[j * W + i];
+  // 막힌 칸에서 출발 · 도착하면 가장 가까운 빈 칸으로
+  const nearestFree = ([i, j]) => {
+    if (free(i, j)) return [i, j];
+    for (let r = 1; r < 12; r++) { let best = null, bd = Infinity; for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) { if (Math.max(Math.abs(di), Math.abs(dj)) !== r || !free(i + di, j + dj)) continue; const d = di * di + dj * dj; if (d < bd) { bd = d; best = [i + di, j + dj]; } } if (best) return best; }
+    return [i, j];
+  };
+  const s = nearestFree(cell(from.x, from.z)), g = nearestFree(cell(to.x, to.z));
+  const key = (i, j) => j * W + i, gk = key(...g);
+  const open = new Map([[key(...s), { i: s[0], j: s[1], g: 0, f: 0, p: null }]]), closed = new Map();
+  const h = (i, j) => { const dx = Math.abs(i - g[0]), dz = Math.abs(j - g[1]); return Math.max(dx, dz) + 0.414 * Math.min(dx, dz); };
+  let found = null, guard = 0;
+  while (open.size && guard++ < 6000) {
+    let cur = null;
+    for (const n of open.values()) if (!cur || n.f < cur.f) cur = n;
+    const ck = key(cur.i, cur.j);
+    open.delete(ck); closed.set(ck, cur);
+    if (ck === gk) { found = cur; break; }
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+      if (!di && !dj) continue;
+      const ni = cur.i + di, nj = cur.j + dj, nk = key(ni, nj);
+      if (!free(ni, nj) || closed.has(nk)) continue;
+      if (di && dj && (!free(cur.i + di, cur.j) || !free(cur.i, cur.j + dj))) continue; // 모서리 비켜 가기
+      const ng = cur.g + (di && dj ? 1.414 : 1);
+      const old = open.get(nk);
+      if (!old || ng < old.g) open.set(nk, { i: ni, j: nj, g: ng, f: ng + h(ni, nj), p: cur });
+    }
+  }
+  if (!found) return [];
+  const pts = [];
+  for (let n = found; n; n = n.p) pts.unshift([ROOM.minX + n.i * NAV_CELL, ROOM.minZ + n.j * NAV_CELL]);
+  // 곧게 펴기: 보이는 가장 먼 점까지 바로 가요
+  const clear = (a, b) => { const n = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / (NAV_CELL / 2)); for (let k = 1; k < n; k++) { const [i, j] = cell(a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n); if (!free(i, j)) return false; } return true; };
+  const out = [];
+  let a = [from.x, from.z], k = 0;
+  while (k < pts.length) { let far = k; for (let m = pts.length - 1; m > k; m--) if (clear(a, pts[m])) { far = m; break; } out.push(pts[far]); a = pts[far]; k = far + 1; }
+  return out;
+}
+
 // 바닥을 누르면 그곳까지 걸어가요 (누른 곳에 동그란 표시)
 const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const marker = new THREE.Mesh(new THREE.RingGeometry(0.22, 0.32, 32), new THREE.MeshBasicMaterial({ color: '#ffb35c', transparent: true, opacity: 0.9, depthWrite: false }));
@@ -395,13 +458,14 @@ function renderSeats() {
   g.innerHTML = '';
   const seats = office.seats;
   // 배치도 크기: 책상 · 의자가 놓인 범위
-  const xs = seats.map((s) => s.desk.x), zs = seats.flatMap((s) => [s.z, s.desk.z]);
-  const pad = 3.4, minX = Math.min(...xs) - pad, maxX = Math.max(...xs) + pad, minZ = Math.min(...zs) - 0.9, maxZ = Math.max(...zs) + 0.9;
+  // 자리 칸은 의자 자리에 놓고, 세로를 1.6배 늘려 위아래 칸이 겹치지 않게
+  const xs = seats.map((s) => s.desk.x), zs = seats.map((s) => s.z);
+  const pad = 3.4, minX = Math.min(...xs) - pad, maxX = Math.max(...xs) + pad, minZ = Math.min(...zs) - 1.3, maxZ = Math.max(...zs) + 1.3;
   const L = (x) => ((x - minX) / (maxX - minX)) * 100, T = (z) => ((z - minZ) / (maxZ - minZ)) * 100;
-  g.style.aspectRatio = `${(maxX - minX) / (maxZ - minZ)}`;
+  g.style.aspectRatio = `${(maxX - minX) / ((maxZ - minZ) * 1.6)}`;
   // 섬(책상 네 개 묶음) 바탕
   const islands = new Map();
-  for (const s of seats) { const b = islands.get(s.island) || { x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity }; b.x0 = Math.min(b.x0, s.desk.x - 3); b.x1 = Math.max(b.x1, s.desk.x + 3); b.z0 = Math.min(b.z0, s.desk.z - 0.7); b.z1 = Math.max(b.z1, s.desk.z + 0.7); islands.set(s.island, b); }
+  for (const s of seats) { const b = islands.get(s.island) || { x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity }; b.x0 = Math.min(b.x0, s.desk.x - 3); b.x1 = Math.max(b.x1, s.desk.x + 3); b.z0 = Math.min(b.z0, s.z - 1); b.z1 = Math.max(b.z1, s.z + 1); islands.set(s.island, b); }
   for (const b of islands.values()) {
     const d = document.createElement('i');
     d.className = 'seat-island';
@@ -417,7 +481,7 @@ function renderSeats() {
     if (o === 'me') { cls = 'mine'; label = '내 자리'; }
     else if (o) { const p = S.peers.get(o); cls = p.st?.sit ? 'taken' : 'away'; label = p.pf.n; }
     b.className = `seat-cell ${cls}`;
-    Object.assign(b.style, { left: L(s.desk.x) + '%', top: T((s.z + s.desk.z) / 2) + '%' });
+    Object.assign(b.style, { left: L(s.desk.x) + '%', top: T(s.z) + '%' });
     b.innerHTML = `<b>${i + 1}</b><span>${esc(label)}</span>`;
     b.title = o === 'me' ? '지금 내 자리' : o ? `${label} 님 자리 · 눌러서 구경하기` : `${i + 1}번으로 옮기기`;
     b.onclick = () => {
@@ -881,7 +945,7 @@ function renderMemoBar() {
   ed.setAttribute('aria-label', '메모 고치기');
   ed.textContent = '✎';
   ed.onclick = () => openDesk('memo');
-  el.append(modeReel, memoReel, lever, ed);
+  el.append(modeReel, memoReel);
 }
 
 // ───────── 책상 정보 카드 ─────────
@@ -1584,9 +1648,13 @@ function updateMe(dt) {
     me.group.rotation.y = lerpAngle(me.group.rotation.y, Math.atan2(dx, dz), Math.min(1, dt * 12));
   } else if (S.walkTo) {
     const w = S.walkTo;
-    const dx = w.x - pos.x, dz = w.z - pos.z, d = Math.hypot(dx, dz);
+    if (!w.path) w.path = findPath(pos, w);
+    // 다음 꺾이는 곳에 닿으면 그다음으로
+    while (w.path.length && Math.hypot(w.path[0][0] - pos.x, w.path[0][1] - pos.z) < 0.35) { w.path.shift(); w.best = Infinity; w.stuck = 0; }
+    const tx = w.path.length ? w.path[0][0] : w.x, tz = w.path.length ? w.path[0][1] : w.z;
+    const dx = tx - pos.x, dz = tz - pos.z, d = Math.hypot(dx, dz);
     w.t += dt;
-    if (d < 0.15) { const then = w.then; S.walkTo = null; then?.(); }
+    if (!w.path.length && d < 0.15) { const then = w.then; S.walkTo = null; then?.(); }
     else {
       speed = 3.4;
       const step = Math.min(d, speed * dt);

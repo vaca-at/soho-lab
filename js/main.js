@@ -338,7 +338,16 @@ function doTrip(def) {
 }
 
 // 같은 층 알림: "○○님이 박수를 쳤습니다."
-function feed(name, text) { if (text && S.entered) toast(`${name}님이 ${text}`, 4000); }
+// 같은 층 알림은 왼쪽 위 기록에 계속 남아요 (최근 5줄, 새 줄이 아래)
+function feedLine(text) {
+  const el = $("#feed");
+  const d = document.createElement("div");
+  d.className = "feed-line";
+  d.textContent = text;
+  el.append(d);
+  while (el.children.length > 5) el.firstChild.remove();
+}
+function feed(name, text) { if (text && S.entered) feedLine(`${name}님이 ${text}`); }
 const saidText = (m) => `'${m}'라고 말했습니다.`;
 
 // 냉장고: 무알콜 맥주 · 콜라 · 사이다 무제한 무료
@@ -492,7 +501,7 @@ function addOrUpdatePeer(id, pf, seat) {
     p = { av, pf, st: null, seat: seat ?? -1, tx: SPAWN.x, tz: SPAWN.z, try: SPAWN.ry, shown: false };
     av.group.visible = false; // 위치(st)를 받으면 보인다
     S.peers.set(id, p);
-    if (S.entered && S.ready) toast(`${pf.n} 님이 출근했어요`);
+    if (S.entered && S.ready) feedLine(`${pf.n}님이 출근했어요.`);
   } else {
     if (JSON.stringify(p.pf.look) !== JSON.stringify(pf.look)) p.av.setLook(fixLook(pf.look));
     if (p.pf.n !== pf.n) p.av.setName(pf.n);
@@ -610,7 +619,7 @@ const net = new Net({
   },
   onLeave(id) {
     const p = removePeer(id);
-    if (p && S.entered) toast(`${p.pf.n} 님이 퇴근했어요`);
+    if (p && S.entered) feedLine(`${p.pf.n}님이 퇴근했어요.`);
   },
   onFull(floor) {
     toast(`${floor}층은 20자리가 다 찼어요. 다른 층을 골라 주세요`);
@@ -681,6 +690,8 @@ async function enter(floor) {
   else net.join(floor, -1);
   if (!RELAY_URL && !Q.has('demo')) { S.seat = 0; goSit(); refreshAllScreens(); }
   await fade(false);
+  $("#feed").innerHTML = "";
+  feedLine(`${S.name}님이 출근했어요.`);
   if (!store.get('seenGuide2', false)) { store.set('seenGuide2', true); setTimeout(() => toast('책상·모니터·캐릭터를 누르면 그 분의 작업을 볼 수 있어요', 6000), 1200); setTimeout(() => toast('앉아 있는 1분마다 1 XP · 1 P가 쌓여요. 내 책상에서 아이템을 사 보세요', 6000), 4000); }
 }
 

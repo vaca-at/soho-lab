@@ -14,17 +14,17 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="style.css?v=20261101e">
+<link rel="stylesheet" href="style.css?v=20261101f">
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
-  "./js/data.js": "./js/data.js?v=20261101e",
-  "./js/blocky.js": "./js/blocky.js?v=20261101e",
-  "./js/avatar.js": "./js/avatar.js?v=20261101e",
-  "./js/world.js": "./js/world.js?v=20261101e",
-  "./js/net.js": "./js/net.js?v=20261101e",
-  "./js/badwords.js": "./js/badwords.js?v=20261101e"
+  "./js/data.js": "./js/data.js?v=20261101f",
+  "./js/blocky.js": "./js/blocky.js?v=20261101f",
+  "./js/avatar.js": "./js/avatar.js?v=20261101f",
+  "./js/world.js": "./js/world.js?v=20261101f",
+  "./js/net.js": "./js/net.js?v=20261101f",
+  "./js/badwords.js": "./js/badwords.js?v=20261101f"
 } }
 </script>
 </head>
@@ -216,6 +216,7 @@
     <button data-menu="others" id="menu-others">다른 분 메모 숨기기</button>
   </div>
   <div id="toasts"></div>
+  <div id="feed" class="feed" aria-live="polite" aria-label="같은 층 알림"></div>
   <div class="bottom">
     <div id="memo-bar" class="glass memo-bar"></div>
     <nav id="actions" class="glass"></nav>
@@ -229,6 +230,6 @@
   <div id="joystick"><div class="knob"></div></div>
 </section>
 
-<script type="module" src="js/main.js?v=20261101e"></script>
+<script type="module" src="js/main.js?v=20261101f"></script>
 </body>
 </html>

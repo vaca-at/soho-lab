@@ -422,3 +422,36 @@ button .cap { display: block; font-size: 10.5px; line-height: 1.3; font-weight: 
   #left-acts.side-acts.right { top: auto; transform: none; bottom: calc(max(12px, env(safe-area-inset-bottom)) + 136px); }
   .hud-right .icon-btn { min-width: 38px; }
 }
+
+/* 메모 슬롯머신: 금테 창 두 개 + 레버 */
+.memo-bar.slot { display: flex; gap: 6px; align-items: center; padding: 6px 8px; overflow: visible; }
+.reel { position: relative; display: grid; grid-template-rows: 13px 34px 13px; align-items: center; outline: none; }
+.reel .rv { height: 13px; font-size: 9px; line-height: 13px; color: var(--soft); padding: 0; }
+.reel .rv:hover { color: var(--amber); }
+.reel .win { height: 34px; overflow: hidden; border-radius: 9px; cursor: pointer; position: relative;
+  background: linear-gradient(#0b0d12, #1c2030 45%, #1c2030 55%, #0b0d12);
+  box-shadow: inset 0 0 0 1.5px #c9a24a, inset 0 6px 8px rgba(0, 0, 0, .7), inset 0 -6px 8px rgba(0, 0, 0, .7), 0 0 10px rgba(201, 162, 74, .18); }
+.reel .win::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(rgba(255, 255, 255, .08), transparent 40%, transparent 60%, rgba(0, 0, 0, .25)); }
+.reel .cell { height: 34px; line-height: 34px; padding: 0 12px; text-align: center; font-size: 13.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff3d6; }
+.reel.mode .win { width: 64px; }
+.reel.memos .win { width: min(190px, 44vw); }
+.reel.mode .cell { color: var(--amber); }
+.reel.spinning .strip { filter: blur(1.4px); }
+.reel.landed .win { box-shadow: inset 0 0 0 2px #ffd27a, inset 0 6px 8px rgba(0, 0, 0, .7), inset 0 -6px 8px rgba(0, 0, 0, .7), 0 0 16px rgba(255, 200, 100, .55); }
+.reel.off { opacity: .4; pointer-events: none; }
+.reel:focus-visible .win { box-shadow: inset 0 0 0 2px var(--amber), 0 0 0 2px var(--amber); }
+.lever { position: relative; width: 22px; height: 52px; }
+.lever::before { content: ''; position: absolute; left: 9px; top: 14px; width: 4px; height: 30px; border-radius: 3px; background: linear-gradient(90deg, #9aa0a8, #e8eaee, #9aa0a8); transform-origin: 50% 100%; transition: transform .2s; }
+.lever i { position: absolute; left: 3px; top: 2px; width: 16px; height: 16px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #ff8a7a, #c8302a 60%, #7a1a14); box-shadow: 0 2px 4px rgba(0, 0, 0, .5); transition: transform .2s; }
+.lever.pull i { animation: lever-ball .7s ease; }
+.lever.pull::before { animation: lever-arm .7s ease; }
+@keyframes lever-ball { 30% { transform: translateY(28px); } 100% { transform: none; } }
+@keyframes lever-arm { 30% { transform: scaleY(-0.1); } 100% { transform: none; } }
+.slot-edit { width: 30px; height: 30px; border-radius: 50%; color: var(--amber); font-size: 14px; }
+.slot-edit:hover { background: rgba(255, 255, 255, .09); }
+@media (prefers-reduced-motion: reduce) { .reel .strip { transition: none !important; } .lever.pull i, .lever.pull::before { animation: none; } }
+/* 아래 막대의 자리 릴 */
+#actions .reel.sit { margin: 0 4px 0 2px; }
+#actions .reel.sit .win { width: 112px; }
+#actions .reel.sit .cell { color: #ffd7a8; font-size: 13px; padding: 0 8px; }
+#actions { align-items: center; }

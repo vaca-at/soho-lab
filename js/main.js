@@ -729,12 +729,16 @@ function doAct(id) {
 function renderActions() {
   const el = $('#actions');
   el.innerHTML = '';
-  const sitBtn = document.createElement('button');
-  sitBtn.className = 'act sit';
-  // 앉아 있으면 [사무실 한 바퀴], 걷고 있으면 [내 자리로]
-  sitBtn.innerHTML = S.sitting ? '<span>사무실 한 바퀴</span><small class="cap">자동으로 걷기</small>' : '<span>내 자리로</span><small class="cap">앉아서 코딩</small>';
-  sitBtn.onclick = () => { if (S.sitting) startTour(); else { stopTour(); goSit(); } };
-  el.append(sitBtn);
+  // 자리 릴: [내 자리로 · 일어서기 · 사무실 한 바퀴] 를 굴려 멈춘 것을 해요 (지금 상태가 보이는 칸)
+  const now = S.sitting ? 0 : touring ? 2 : 1;
+  // 가운데 칸: 앉아 있을 땐 [일어서기], 돌아다닐 땐 [멈추기]
+  const sitReel = makeReel(['내 자리로', S.sitting ? '일어서기' : '멈추기', '사무실 한 바퀴'], now, (i) => {
+    if (i === 0) { stopTour(); if (!S.sitting) goSit(); }
+    else if (i === 1) { stopTour(); tripToken++; if (S.sitting) standUp(); else { S.walkTo = null; hideMarker(); } }
+    else if (!touring) startTour();
+  }, 'sit');
+  sitReel.title = S.sitting ? '내 자리로 · 일어서기 · 사무실 한 바퀴' : '내 자리로 · 멈추기 · 사무실 한 바퀴';
+  el.append(sitReel);
   const mv = document.createElement('button');
   mv.className = 'act';
   mv.innerHTML = '<span>자리 이동</span><small class="cap">1~20번 고르기</small>';
@@ -763,62 +767,108 @@ function setMemoMode(mode, idx = S.memoIdx) {
   pushProfile();
   renderMemoBar();
 }
+// 메모 줄: 슬롯머신처럼 굴리는 두 개의 릴 [자동 · 하나 · 없음] [메모 5개] + 🎰 레버(아무 메모나 뽑기)
+// 릴을 누르거나 · 휠을 굴리거나 · 위아래로 끌면 한 칸씩 돌아가요. 멈춘 칸이 골라져요
+const REEL_H = 34;
+function makeReel(labels, start, onSettle, cls = '') {
+  const n = labels.length, COPIES = 5, MID = 2 * n;
+  const el = document.createElement('div');
+  el.className = 'reel ' + cls;
+  el.tabIndex = 0;
+  el.setAttribute('role', 'spinbutton');
+  el.innerHTML = '<button type="button" class="rv up" aria-label="이전 칸">▴</button><div class="win"><div class="strip"></div></div><button type="button" class="rv dn" aria-label="다음 칸">▾</button>';
+  const strip = el.querySelector('.strip');
+  for (let c = 0; c < COPIES; c++) for (const t of labels) { const d = document.createElement('div'); d.className = 'cell'; d.textContent = t; strip.append(d); }
+  let pos = MID + start, spinning = false;
+  const place = (dur) => { strip.style.transition = dur ? `transform ${dur}s cubic-bezier(.15,.85,.25,1.12)` : 'none'; strip.style.transform = `translateY(${-pos * REEL_H}px)`; };
+  const norm = () => { pos = MID + (((pos - MID) % n) + n) % n; place(0); void strip.offsetHeight; };
+  place(0);
+  el.setAttribute('aria-valuetext', labels[start]);
+  const spin = (k, dur = 0.32) => {
+    if (!n) return;
+    norm();
+    pos += k;
+    spinning = true;
+    el.classList.add('spinning');
+    place(dur);
+    clearTimeout(el._t);
+    el._t = setTimeout(settle, dur * 1000 + 120); // 전환 끝 알림이 안 와도 멈추게
+  };
+  const settle = () => {
+    if (!spinning) return;
+    clearTimeout(el._t);
+    spinning = false;
+    el.classList.remove('spinning');
+    norm();
+    const i = pos - MID;
+    el.setAttribute('aria-valuetext', labels[i]);
+    el.classList.add('landed'); setTimeout(() => el.classList.remove('landed'), 260);
+    onSettle(i);
+  };
+  strip.addEventListener('transitionend', settle);
+  el.querySelector('.up').onclick = (e) => { e.stopPropagation(); spin(-1); };
+  el.querySelector('.dn').onclick = (e) => { e.stopPropagation(); spin(1); };
+  el.querySelector('.win').onclick = () => spin(1);
+  let wheelT = 0;
+  el.addEventListener('wheel', (e) => { e.preventDefault(); const now = performance.now(); if (now - wheelT < 140) return; wheelT = now; spin(e.deltaY > 0 ? 1 : -1); }, { passive: false });
+  el.addEventListener('keydown', (e) => { if (e.key === 'ArrowDown') { spin(1); e.preventDefault(); } if (e.key === 'ArrowUp') { spin(-1); e.preventDefault(); } });
+  let dragY = null;
+  el.addEventListener('pointerdown', (e) => { if (e.target.closest('.rv')) return; dragY = e.clientY; });
+  el.addEventListener('pointermove', (e) => { if (dragY == null) return; const dy = e.clientY - dragY; if (Math.abs(dy) > 18) { spin(dy < 0 ? 1 : -1); dragY = e.clientY; } });
+  addEventListener('pointerup', () => { dragY = null; });
+  el.spin = spin;
+  el.size = n;
+  el.cur = () => pos - MID;
+  return el;
+}
 function renderMemoBar() {
   const el = $('#memo-bar');
-  const open = !!el.querySelector('.memo-pop:not([hidden])');
   el.innerHTML = '';
-  const cur = S.memoMode === 'one' ? `하나 · ${S.profile.memos[S.memoIdx] || ''}` : S.memoMode === 'auto' ? '자동' : '없음';
-  const btn = document.createElement('button');
-  btn.className = 'memo-toggle';
-  btn.setAttribute('aria-expanded', open);
-  btn.innerHTML = `<span class="ic">💬</span><span class="cur">${esc(cur)}</span><span class="car">▴</span>`;
-  btn.title = '말풍선 · 메모 고르기';
-  const pop = document.createElement('div');
-  pop.className = 'memo-pop glass';
-  pop.hidden = !open;
-  btn.onclick = (e) => { e.stopPropagation(); pop.hidden = !pop.hidden; btn.setAttribute('aria-expanded', !pop.hidden); };
-  // 말풍선 방식
-  const seg = document.createElement('div');
-  seg.className = 'memo-seg';
-  seg.setAttribute('role', 'radiogroup');
-  seg.setAttribute('aria-label', '말풍선');
-  for (const m of MEMO_MODES) {
-    const b = document.createElement('button');
-    b.className = 'seg';
-    b.setAttribute('role', 'radio');
-    b.setAttribute('aria-checked', S.memoMode === m.id);
-    b.innerHTML = `${m.name}<small>${m.cap}</small>`;
-    b.onclick = () => setMemoMode(m.id);
-    seg.append(b);
-  }
-  pop.append(seg);
-  // 메모 5개: '하나'면 그 메모를 계속, 아니면 지금 한 번 띄우기
-  const list = document.createElement('div');
-  list.className = 'memo-list';
-  S.profile.memos.forEach((m, i) => {
-    if (!m.trim()) return;
-    const b = document.createElement('button');
-    b.className = 'memo';
-    b.textContent = m;
-    if (S.memoMode === 'one') b.setAttribute('aria-pressed', i === S.memoIdx);
-    b.onclick = () => {
-      pop.hidden = true;
-      if (S.memoMode === 'one') { setMemoMode('one', i); feed(S.name, saidText(m)); return; }
-      me?.pin(i); net.sendAct({ m: i });
-      feed(S.name, saidText(m));
-    };
-    list.append(b);
-  });
-  pop.append(list);
+  el.classList.add('slot');
+  let leverBusy = false; // 레버를 당긴 동안에는 말풍선 릴이 멈춰도 바로 바꾸지 않아요
+  const modeIdx = Math.max(0, MEMO_MODES.findIndex((m) => m.id === S.memoMode));
+  const modeReel = makeReel(MEMO_MODES.map((m) => m.name), modeIdx, (i) => {
+    const id = MEMO_MODES[i].id;
+    if (leverBusy || id === S.memoMode) return;
+    setMemoMode(id);
+    toast(id === 'auto' ? '메모가 머리 위에 돌아가며 떠요' : id === 'one' ? `"${S.profile.memos[S.memoIdx] || ''}" 메모만 계속 떠요` : '말풍선을 껐어요');
+  }, 'mode');
+  modeReel.title = '말풍선: 자동 · 하나 · 없음';
+  // 메모 릴: 비어 있지 않은 메모만
+  const idxs = S.profile.memos.map((m, i) => [m, i]).filter(([m]) => m.trim());
+  const start = Math.max(0, idxs.findIndex(([, i]) => i === S.memoIdx));
+  const memoReel = makeReel(idxs.map(([m]) => m), start, (j) => {
+    const [m, i] = idxs[j] || [];
+    if (m == null) return;
+    if (leverBusy) { leverBusy = false; setMemoMode('one', i); feed(S.name, saidText(m)); toast(`🎰 "${m}" 당첨! 이 메모가 계속 떠요`); return; }
+    if (S.memoMode === 'one') { if (i !== S.memoIdx) { setMemoMode('one', i); feed(S.name, saidText(m)); } }
+    else if (S.memoMode === 'auto') { S.memoIdx = i; store.set('memoIdx', i); me?.pin(i); net.sendAct({ m: i }); feed(S.name, saidText(m)); }
+  }, 'memos' + (S.memoMode === 'off' ? ' off' : ''));
+  memoReel.title = S.memoMode === 'one' ? '이 메모가 계속 떠요' : S.memoMode === 'auto' ? '굴려서 멈춘 메모를 한 번 띄워요' : '말풍선이 꺼져 있어요';
+  // 🎰 레버: 메모 릴을 크게 돌려 아무 메모나 '하나'로
+  const lever = document.createElement('button');
+  lever.className = 'lever';
+  lever.type = 'button';
+  lever.title = '아무 메모나 뽑기';
+  lever.setAttribute('aria-label', '아무 메모나 뽑기');
+  lever.innerHTML = '<i></i>';
+  lever.onclick = () => {
+    if (!idxs.length) return;
+    lever.classList.remove('pull'); void lever.offsetWidth; lever.classList.add('pull');
+    leverBusy = true;
+    if (S.memoMode !== 'one') { modeReel.spin((1 - modeReel.cur() + 3) % 3, 0.6); memoReel.classList.remove('off'); }
+    const k = idxs.length + 1 + Math.floor(Math.random() * idxs.length);
+    memoReel.spin(k, 1.3 + Math.random() * 0.4);
+  };
   const ed = document.createElement('button');
-  ed.className = 'memo edit';
-  ed.textContent = '✎ 메모 고치기';
-  ed.onclick = () => { pop.hidden = true; openDesk('memo'); };
-  pop.append(ed);
-  el.append(pop, btn);
+  ed.className = 'slot-edit';
+  ed.type = 'button';
+  ed.title = '메모 고치기';
+  ed.setAttribute('aria-label', '메모 고치기');
+  ed.textContent = '✎';
+  ed.onclick = () => openDesk('memo');
+  el.append(modeReel, memoReel, lever, ed);
 }
-// 바깥을 누르면 메모 창 닫기
-document.addEventListener('pointerdown', (e) => { if (!e.target.closest('#memo-bar')) { const p = $('#memo-bar .memo-pop'); if (p && !p.hidden) { p.hidden = true; $('#memo-bar .memo-toggle')?.setAttribute('aria-expanded', false); } } });
 
 // ───────── 책상 정보 카드 ─────────
 let cardFor = null;

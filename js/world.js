@@ -51,8 +51,8 @@ export function seatLayout() {
       }
     }
   });
-  // 1번 자리는 입구(엘리베이터)에서 가장 가까운 자리. 서버는 빈 자리 중 번호가 작은 것부터 줘요
-  out.sort((a, b) => Math.hypot(a.x - SPAWN.x, a.z - SPAWN.z) - Math.hypot(b.x - SPAWN.x, b.z - SPAWN.z) || a.x - b.x);
+  // 1번 자리: 입구(엘리베이터)에서 안쪽을 봤을 때 입구 쪽 줄의 맨 왼쪽. 서버는 빈 자리 중 번호가 작은 것부터 줘요
+  out.sort((a, b) => Math.round(b.z * 2) - Math.round(a.z * 2) || a.x - b.x);
   out.forEach((s, k) => { s.i = k; });
   return out.slice(0, SEATS);
 }

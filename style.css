@@ -455,3 +455,13 @@ button .cap { display: block; font-size: 10.5px; line-height: 1.3; font-weight: 
 #actions .reel.sit .win { width: 112px; }
 #actions .reel.sit .cell { color: #ffd7a8; font-size: 13px; padding: 0 8px; }
 #actions { align-items: center; }
+
+/* 자리표: 실제 배치도 (섬 · 자리 위치 그대로) */
+.seat-sheet { width: min(720px, 100%); }
+.seat-map { position: relative; width: 100%; border-radius: 14px; background: repeating-linear-gradient(90deg, rgba(255, 255, 255, .025) 0 1px, transparent 1px 24px), #151821; border: 1px solid var(--line); }
+.seat-island { position: absolute; border-radius: 8px; background: rgba(216, 195, 160, .12); border: 1px dashed rgba(216, 195, 160, .3); }
+.seat-map .seat-cell { position: absolute; transform: translate(-50%, -50%); width: 12.6%; aspect-ratio: auto; height: auto; min-height: 44px; padding: 4px 2px; }
+.seat-map .seat-cell b { font-size: 15px; }
+.seat-map .seat-cell span { font-size: 9.5px; }
+.seat-window { text-align: center; font-size: 12px; color: #9fc0e8; border-bottom: 2px solid rgba(159, 192, 232, .45); padding-bottom: 4px; }
+@media (max-width: 760px) { .seat-map .seat-cell span { display: none; } .seat-map .seat-cell { min-height: 30px; } }

@@ -393,10 +393,23 @@ function openSeats() { renderSeats(); openModal('seat-modal'); }
 function renderSeats() {
   const g = $('#seat-grid');
   g.innerHTML = '';
-  // 5칸씩 4줄. 1~5번 줄이 맨 아래(입구 쪽)
-  for (let row = 3; row >= 0; row--) for (let c = 0; c < 5; c++) {
-    const i = row * 5 + c;
-    if (i >= SEATS) continue;
+  const seats = office.seats;
+  // 배치도 크기: 책상 · 의자가 놓인 범위
+  const xs = seats.map((s) => s.desk.x), zs = seats.flatMap((s) => [s.z, s.desk.z]);
+  const pad = 3.4, minX = Math.min(...xs) - pad, maxX = Math.max(...xs) + pad, minZ = Math.min(...zs) - 0.9, maxZ = Math.max(...zs) + 0.9;
+  const L = (x) => ((x - minX) / (maxX - minX)) * 100, T = (z) => ((z - minZ) / (maxZ - minZ)) * 100;
+  g.style.aspectRatio = `${(maxX - minX) / (maxZ - minZ)}`;
+  // 섬(책상 네 개 묶음) 바탕
+  const islands = new Map();
+  for (const s of seats) { const b = islands.get(s.island) || { x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity }; b.x0 = Math.min(b.x0, s.desk.x - 3); b.x1 = Math.max(b.x1, s.desk.x + 3); b.z0 = Math.min(b.z0, s.desk.z - 0.7); b.z1 = Math.max(b.z1, s.desk.z + 0.7); islands.set(s.island, b); }
+  for (const b of islands.values()) {
+    const d = document.createElement('i');
+    d.className = 'seat-island';
+    Object.assign(d.style, { left: L(b.x0) + '%', width: L(b.x1) - L(b.x0) + '%', top: T(b.z0) + '%', height: T(b.z1) - T(b.z0) + '%' });
+    g.append(d);
+  }
+  for (const s of seats) {
+    const i = s.i;
     const o = ownerOf(i);
     const b = document.createElement('button');
     b.type = 'button';
@@ -404,6 +417,7 @@ function renderSeats() {
     if (o === 'me') { cls = 'mine'; label = '내 자리'; }
     else if (o) { const p = S.peers.get(o); cls = p.st?.sit ? 'taken' : 'away'; label = p.pf.n; }
     b.className = `seat-cell ${cls}`;
+    Object.assign(b.style, { left: L(s.desk.x) + '%', top: T((s.z + s.desk.z) / 2) + '%' });
     b.innerHTML = `<b>${i + 1}</b><span>${esc(label)}</span>`;
     b.title = o === 'me' ? '지금 내 자리' : o ? `${label} 님 자리 · 눌러서 구경하기` : `${i + 1}번으로 옮기기`;
     b.onclick = () => {

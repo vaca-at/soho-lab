@@ -14,17 +14,17 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="style.css?v=20261101k">
+<link rel="stylesheet" href="style.css?v=20261101l">
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
-  "./js/data.js": "./js/data.js?v=20261101k",
-  "./js/blocky.js": "./js/blocky.js?v=20261101k",
-  "./js/avatar.js": "./js/avatar.js?v=20261101k",
-  "./js/world.js": "./js/world.js?v=20261101k",
-  "./js/net.js": "./js/net.js?v=20261101k",
-  "./js/badwords.js": "./js/badwords.js?v=20261101k"
+  "./js/data.js": "./js/data.js?v=20261101l",
+  "./js/blocky.js": "./js/blocky.js?v=20261101l",
+  "./js/avatar.js": "./js/avatar.js?v=20261101l",
+  "./js/world.js": "./js/world.js?v=20261101l",
+  "./js/net.js": "./js/net.js?v=20261101l",
+  "./js/badwords.js": "./js/badwords.js?v=20261101l"
 } }
 </script>
 </head>
@@ -127,10 +127,11 @@
 
 <!-- 자리 이동: 독서실 자리표 -->
 <div id="seat-modal" class="modal" hidden>
-  <div class="sheet">
+  <div class="sheet seat-sheet">
     <header class="panel-head"><h2>자리 이동</h2><button class="icon-btn" data-close="seat-modal" aria-label="닫기">✕</button></header>
     <p class="sub">빈 자리를 누르면 그 책상으로 옮겨요. 사람이 있는 자리를 누르면 그분 책상을 구경해요.</p>
-    <div id="seat-grid" class="seat-grid"></div>
+    <div class="seat-window"><span>▲ 창가</span></div>
+    <div id="seat-grid" class="seat-map"></div>
     <div class="seat-door"><span>▼ 입구 · 엘리베이터</span></div>
     <div class="seat-legend"><span><i class="lg empty"></i>빈 자리</span><span><i class="lg taken"></i>코딩 중</span><span><i class="lg away"></i>잠깐 비움</span><span><i class="lg mine"></i>내 자리</span><span id="seat-note" class="muted"></span></div>
   </div>
@@ -245,6 +246,6 @@
   <div id="joystick"><div class="knob"></div></div>
 </section>
 
-<script type="module" src="js/main.js?v=20261101k"></script>
+<script type="module" src="js/main.js?v=20261101l"></script>
 </body>
 </html>

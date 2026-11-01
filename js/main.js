@@ -11,6 +11,7 @@ import { Avatar, FONT } from './avatar.js';
 import { buildOffice, collide, paintScreen, paintSecond, dressDesk, itemModel, SPAWN, ROOM, THEMES } from './world.js';
 import { Net } from './net.js';
 import { findBad } from './badwords.js';
+import { initTodo } from './todo.js';
 
 const Q = new URLSearchParams(location.search);
 const $ = (s) => document.querySelector(s);
@@ -693,7 +694,39 @@ function updatePeople() {
   $('#hud-people').textContent = n;
   office?.paintBoard(S.floor || 1, n);
   if (!$('#seat-modal').hidden) renderSeats();
+  if (!$('#people-pop').hidden) renderPeople();
 }
+
+// 같은 층 사람 목록: 위 ● 9/20 을 누르면 닉네임 · 자리 · 지금 하는 일. 누르면 그 분 책상 보기
+function renderPeople() {
+  const rows = [];
+  if (S.entered) rows.push({ id: 'me', seat: S.seat, name: S.name, sit: S.sitting, now: nowOf(myPf()) });
+  for (const [id, p] of S.peers) rows.push({ id, seat: p.seat, name: p.pf.n, sit: !!p.st?.sit, now: nowOf(p.pf) });
+  rows.sort((a, b) => (a.seat < 0) - (b.seat < 0) || a.seat - b.seat);
+  $('#pp-title').innerHTML = `${S.floor || 1}F · ${rows.length}명<small>${esc(office?.theme?.name || '')}</small>`;
+  const ul = $('#pp-list');
+  ul.innerHTML = '';
+  for (const r of rows) {
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.innerHTML = `<span class="pp-seat">${r.seat >= 0 ? r.seat + 1 : '–'}</span><span class="pp-name">${esc(r.name)}${r.id === 'me' ? '<em>나</em>' : ''}</span><span class="pp-st ${r.sit ? '' : 'away'}">${r.sit ? '● 코딩 중' : '○ 잠깐 비움'}</span>${r.now ? `<span class="pp-now">${esc(r.now)}</span>` : ''}`;
+    b.title = r.seat >= 0 ? `${r.seat + 1}번 책상 보기` : '';
+    b.onclick = () => { setPeopleOpen(false); if (r.seat >= 0) openCard(r.seat, r.id); };
+    li.append(b);
+    ul.append(li);
+  }
+}
+function setPeopleOpen(v) {
+  $('#people-pop').hidden = !v;
+  $('#people-chip').setAttribute('aria-expanded', v);
+  if (v) renderPeople();
+}
+$('#people-chip').onclick = (e) => { e.stopPropagation(); setPeopleOpen($('#people-pop').hidden); };
+$('#pp-close').onclick = () => setPeopleOpen(false);
+$('#pp-floors').onclick = () => { setPeopleOpen(false); openFloors(); };
+document.addEventListener('pointerdown', (e) => { if (!$('#people-pop').hidden && !e.target.closest('#people-pop, #people-chip')) setPeopleOpen(false); });
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#people-pop').hidden) setPeopleOpen(false); });
 
 // ───────── 네트워크 ─────────
 const net = new Net({
@@ -842,15 +875,13 @@ function renderActions() {
   }, 'sit');
   sitReel.title = S.sitting ? '내 자리로 · 일어서기 · 사무실 한 바퀴' : '내 자리로 · 멈추기 · 사무실 한 바퀴';
   el.append(sitReel);
-  const mv = document.createElement('button');
-  mv.className = 'act';
-  mv.innerHTML = '<span>자리 이동</span><small class="cap">1~20번 고르기</small>';
-  mv.onclick = openSeats;
-  el.append(mv);
-  // 아래 막대: 제자리 동작 · 왼쪽 세로 메뉴: 걸어갔다 오는 동작 (냉장고는 음료 고르기)
-  const left = $('#left-acts');
+  // 아래 막대: 제자리 동작 · 오른쪽 세로 메뉴: [자리 이동] 따로 + 걸어갔다 오는 동작 (냉장고는 음료 고르기)
+  $('#btn-seat').onclick = openSeats;
+  const left = $('#walk-acts');
   left.innerHTML = '';
-  for (const a of ACTIONS.filter((x) => !x.auto && x.pose !== true && !x.hidden)) {
+  // 오른쪽 걸어갔다 오는 동작은 글자 수 짧은 것부터
+  const len = (a) => (a.trip || a.fridge ? a.name.replace(/\s/g, '').length : 0);
+  for (const a of ACTIONS.filter((x) => !x.auto && x.pose !== true && !x.hidden).sort((p, q) => len(p) - len(q))) {
     const moving = a.trip || a.fridge;
     const b = document.createElement('button');
     b.className = moving ? 'side-btn' : 'act';
@@ -860,7 +891,7 @@ function renderActions() {
   }
 }
 
-// 메모 줄: [자동 | 하나 | 없음] + 메모 5개. '하나'일 때 누른 메모가 계속 떠 있어요
+// 말풍선 방식 바꾸기: 자동 · 하나 · 없음
 function setMemoMode(mode, idx = S.memoIdx) {
   S.memoMode = mode;
   S.memoIdx = Math.max(0, Math.min(MAX_MEMOS - 1, idx));
@@ -870,7 +901,7 @@ function setMemoMode(mode, idx = S.memoIdx) {
   pushProfile();
   renderMemoBar();
 }
-// 메모 줄: 슬롯머신처럼 굴리는 두 개의 릴 [자동 · 하나 · 없음] [메모 5개] + 🎰 레버(아무 메모나 뽑기)
+// 슬롯머신 릴 (자리 줄에서 써요)
 // 릴을 누르거나 · 휠을 굴리거나 · 위아래로 끌면 한 칸씩 돌아가요. 멈춘 칸이 골라져요
 const REEL_H = 34;
 function makeReel(labels, start, onSettle, cls = '') {
@@ -924,53 +955,59 @@ function makeReel(labels, start, onSettle, cls = '') {
   el.cur = () => pos - MID;
   return el;
 }
+// 말풍선 줄: 동작 단추처럼 다 펼쳐 둬요 → [자동 · 하나 · 없음] | 말풍선 5개 | ✎
+// 누른 말풍선 하나만 떠요. 지나가며 다른 말풍선이 뜨는 일이 없어요
 function renderMemoBar() {
   const el = $('#memo-bar');
   el.innerHTML = '';
-  el.classList.add('slot');
-  let leverBusy = false; // 레버를 당긴 동안에는 말풍선 릴이 멈춰도 바로 바꾸지 않아요
-  const modeIdx = Math.max(0, MEMO_MODES.findIndex((m) => m.id === S.memoMode));
-  const modeReel = makeReel(MEMO_MODES.map((m) => m.name), modeIdx, (i) => {
-    const id = MEMO_MODES[i].id;
-    if (leverBusy || id === S.memoMode) return;
-    setMemoMode(id);
-    toast(id === 'auto' ? '메모가 머리 위에 돌아가며 떠요' : id === 'one' ? `"${S.profile.memos[S.memoIdx] || ''}" 메모만 계속 떠요` : '말풍선을 껐어요');
-  }, 'mode');
-  modeReel.title = '말풍선: 자동 · 하나 · 없음';
-  // 메모 릴: 비어 있지 않은 메모만
-  const idxs = S.profile.memos.map((m, i) => [m, i]).filter(([m]) => m.trim());
-  const start = Math.max(0, idxs.findIndex(([, i]) => i === S.memoIdx));
-  const memoReel = makeReel(idxs.map(([m]) => m), start, (j) => {
-    const [m, i] = idxs[j] || [];
-    if (m == null) return;
-    if (leverBusy) { leverBusy = false; setMemoMode('one', i); feed(S.name, saidText(m)); toast(`🎰 "${m}" 당첨! 이 메모가 계속 떠요`); return; }
-    if (S.memoMode === 'one') { if (i !== S.memoIdx) { setMemoMode('one', i); feed(S.name, saidText(m)); } }
-    else if (S.memoMode === 'auto') { S.memoIdx = i; store.set('memoIdx', i); me?.pin(i); net.sendAct({ m: i }); feed(S.name, saidText(m)); }
-  }, 'memos' + (S.memoMode === 'off' ? ' off' : ''));
-  memoReel.title = S.memoMode === 'one' ? '이 메모가 계속 떠요' : S.memoMode === 'auto' ? '굴려서 멈춘 메모를 한 번 띄워요' : '말풍선이 꺼져 있어요';
-  // 🎰 레버: 메모 릴을 크게 돌려 아무 메모나 '하나'로
-  const lever = document.createElement('button');
-  lever.className = 'lever';
-  lever.type = 'button';
-  lever.title = '아무 메모나 뽑기';
-  lever.setAttribute('aria-label', '아무 메모나 뽑기');
-  lever.innerHTML = '<i></i>';
-  lever.onclick = () => {
-    if (!idxs.length) return;
-    lever.classList.remove('pull'); void lever.offsetWidth; lever.classList.add('pull');
-    leverBusy = true;
-    if (S.memoMode !== 'one') { modeReel.spin((1 - modeReel.cur() + 3) % 3, 0.6); memoReel.classList.remove('off'); }
-    const k = idxs.length + 1 + Math.floor(Math.random() * idxs.length);
-    memoReel.spin(k, 1.3 + Math.random() * 0.4);
-  };
+  el.className = 'glass memo-bar bubbles';
+  const seg = document.createElement('div');
+  seg.className = 'bb-mode';
+  seg.setAttribute('role', 'radiogroup');
+  seg.setAttribute('aria-label', '말풍선 띄우는 방식');
+  for (const m of MEMO_MODES) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', S.memoMode === m.id);
+    b.title = m.cap;
+    b.textContent = m.name;
+    b.onclick = () => {
+      if (m.id === S.memoMode) return;
+      setMemoMode(m.id);
+      toast(m.id === 'auto' ? '말풍선 5개가 머리 위에 돌아가며 떠요' : m.id === 'one' ? `"${S.profile.memos[S.memoIdx] || ''}" 말풍선만 계속 떠요` : '말풍선을 껐어요');
+    };
+    seg.append(b);
+  }
+  const sep = document.createElement('span');
+  sep.className = 'act-sep';
+  const list = document.createElement('div');
+  list.className = 'bb-list';
+  S.profile.memos.forEach((m, i) => {
+    if (!m.trim()) return;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'bb';
+    b.textContent = m;
+    b.title = m;
+    if (S.memoMode === 'one') b.setAttribute('aria-pressed', i === S.memoIdx);
+    b.onclick = () => {
+      // 하나 · 없음: 이 말풍선을 계속 띄워요 / 자동: 지금 한 번 띄워요
+      if (S.memoMode !== 'auto') { if (S.memoMode === 'one' && i === S.memoIdx) return; setMemoMode('one', i); }
+      else { S.memoIdx = i; store.set('memoIdx', i); me?.pin(i); net.sendAct({ m: i }); }
+      feed(S.name, saidText(m));
+    };
+    list.append(b);
+  });
   const ed = document.createElement('button');
-  ed.className = 'slot-edit';
   ed.type = 'button';
-  ed.title = '메모 고치기';
-  ed.setAttribute('aria-label', '메모 고치기');
+  ed.className = 'bb edit';
+  ed.title = '말풍선 고치기';
+  ed.setAttribute('aria-label', '말풍선 고치기');
   ed.textContent = '✎';
   ed.onclick = () => openDesk('memo');
-  el.append(modeReel, memoReel);
+  list.append(ed);
+  el.append(seg, sep, list);
 }
 
 // ───────── 책상 정보 카드 ─────────
@@ -1006,12 +1043,12 @@ function openCard(i, who) {
         <span class="c-status ${sit ? '' : 'away'}"><i></i>${sit ? '책상에서 코딩 중' : '잠깐 자리 비움'}</span></div>
       ${now ? `<div class="c-now"><small>지금</small>${esc(now)}</div>` : ''}
       <p class="c-label">자랑하는 결과물 ${pf.links?.length ? `· ${Math.min(MAX_LINKS, pf.links.length)}개` : ''}</p>
-      ${links ? `<div class="c-links">${links}</div>` : `<p class="c-empty">${mine ? '아직 올린 결과물이 없어요. 내 책상에서 3개까지 자랑할 수 있어요.' : '아직 올린 결과물이 없어요.'}</p>`}
-      ${memos ? `<p class="c-label">메모</p><div class="c-memos">${memos}</div>` : ''}
+      ${links ? `<div class="c-links">${links}</div>` : `<p class="c-empty">${mine ? '아직 올린 결과물이 없어요. 위 🌐 내 웹 자랑에서 3개까지 올릴 수 있어요.' : '아직 올린 결과물이 없어요.'}</p>`}
+      ${memos ? `<p class="c-label">말풍선</p><div class="c-memos">${memos}</div>` : ''}
       ${mine ? `<div class="c-acts"><button class="ghost small-btn" id="c-edit">내 책상 꾸미기</button>${S.sitting ? '' : '<button class="primary small-btn" id="c-sit">앉기</button>'}</div>` : ''}`;
     body.querySelectorAll('[data-peek]').forEach((b) => (b.onclick = () => peek(pf.links[+b.dataset.peek])));
     if (mine) {
-      $('#c-edit').onclick = () => openDesk();
+      $('#c-edit').onclick = () => openDesk('deco');
       if ($('#c-sit')) $('#c-sit').onclick = () => { closeCard(); goSit(); };
     }
   }
@@ -1091,15 +1128,16 @@ async function openFloors() {
 }
 
 // ───────── 내 책상 (메모 · 결과물 · 꾸미기 · 상점) ─────────
-let deskTab = 'memo';
-function openDesk(tab = deskTab) {
+let deskTab = 'deco';
+const DESK_TITLES = { deco: '내 책상 꾸미기', memo: '머리 위 말풍선', links: '내 웹 자랑' };
+function openDesk(tab = 'deco') {
   closeCard();
   const p = S.profile;
   const mg = $('#pf-memos');
   mg.innerHTML = '';
   for (let i = 0; i < MAX_MEMOS; i++) {
     const l = document.createElement('label');
-    l.innerHTML = `<input maxlength="${LIMITS.memo}" placeholder="메모 ${i + 1}${i === 0 ? ' (지금 하는 일처럼 모니터에도 떠요)' : ''}" aria-label="메모 ${i + 1}">`;
+    l.innerHTML = `<input maxlength="${LIMITS.memo}" placeholder="말풍선 ${i + 1}${i === 0 ? ' (지금 하는 일처럼 모니터에도 떠요)' : ''}" aria-label="말풍선 ${i + 1}">`;
     l.querySelector('input').value = p.memos[i] || '';
     mg.append(l);
   }
@@ -1113,7 +1151,7 @@ function openDesk(tab = deskTab) {
 }
 function setDeskTab(tab) {
   deskTab = tab;
-  for (const b of $$('#desk-tabs [data-tab]')) b.setAttribute('aria-selected', b.dataset.tab === tab);
+  $('#desk-title').textContent = DESK_TITLES[tab] || '내 책상';
   for (const s of $$('#desk-form [data-pane]')) s.hidden = s.dataset.pane !== tab;
   $('#desk-save').hidden = tab === 'deco';
   // 꾸미기: 창을 오른쪽으로 비켜 두고 카메라가 내 책상을 내려다봐요
@@ -1126,7 +1164,6 @@ function setDeskTab(tab) {
   // 꾸미는 동안에는 내 이름표 · 말풍선이 책상을 가리지 않게
   if (me) { me.tag.visible = tab !== 'deco'; me.memoOn = tab !== 'deco'; }
 }
-$('#desk-tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) setDeskTab(b.dataset.tab); });
 function addLinkRow(l = { t: '', u: '', d: '' }) {
   const lr = $('#pf-links');
   if (lr.children.length >= MAX_LINKS) return;
@@ -1158,7 +1195,7 @@ $('#desk-form').addEventListener('submit', (e) => {
     links.push({ t: row.querySelector('.t').value.trim().slice(0, LIMITS.title), u, d: row.querySelector('.desc').value.trim().slice(0, LIMITS.desc) });
   }
   // 비속어 · 나쁜 말은 저장하지 않아요
-  for (const [k, m] of memos.entries()) { const w = findBad(m); if (w) { setDeskTab('memo'); showFormError(`메모 ${k + 1}에 쓸 수 없는 말이 있어요. 비속어 · 나쁜 말은 같은 층 모두에게 보이니 고쳐 주세요.`); $$('#pf-memos input')[k].focus(); return; } }
+  for (const [k, m] of memos.entries()) { const w = findBad(m); if (w) { setDeskTab('memo'); showFormError(`말풍선 ${k + 1}에 쓸 수 없는 말이 있어요. 비속어 · 나쁜 말은 같은 층 모두에게 보이니 고쳐 주세요.`); $$('#pf-memos input')[k].focus(); return; } }
   for (const l of links) if (findBad(l.t + ' ' + l.d)) { setDeskTab('links'); showFormError('결과물 이름이나 설명에 쓸 수 없는 말이 있어요.'); return; }
   S.profile = { ...S.profile, memos, links: links.slice(0, MAX_LINKS) };
   store.set('profile', S.profile);
@@ -1167,7 +1204,7 @@ $('#desk-form').addEventListener('submit', (e) => {
   pushProfile();
   renderMemoBar();
   closeModal('desk-modal');
-  toast(bad ? `저장했어요. 주소가 이상한 결과물 ${bad}개는 뺐어요` : '내 책상을 저장했어요');
+  toast(bad ? `저장했어요. 주소가 이상한 결과물 ${bad}개는 뺐어요` : '저장했어요');
 });
 
 // 꾸미기 · 상점
@@ -1582,7 +1619,21 @@ $('#xp-chip').onclick = openShop;
 $('#btn-store').onclick = openShop;
 $('#deco-to-shop').onclick = () => { closeModal('desk-modal'); openShop(); };
 $('#btn-char').onclick = openCreator;
-$('#btn-menu').onclick = () => { $('#menu').hidden = !$('#menu').hidden; $('#menu-others').textContent = S.othersMemo ? '다른 분 메모 숨기기' : '다른 분 메모 보기'; };
+// 할 일 · 메모: 위 ✅ 단추로 열고 닫아요. 단추에 오늘 끝낸 수/전체
+const todo = initTodo({
+  store,
+  onCount: (done, all) => {
+    const c = $('#todo-count');
+    c.hidden = !all;
+    c.textContent = `${done}/${all}`;
+    c.classList.toggle('all', all > 0 && done === all);
+  },
+});
+const setTodoOpen = (v) => { todo.open(v); $('#btn-todo').setAttribute('aria-expanded', v); $('#btn-todo').classList.toggle('on', v); };
+$('#btn-todo').onclick = () => setTodoOpen(!todo.isOpen);
+$('#td-close').onclick = () => setTodoOpen(false);
+if (store.get('todoOpen', false)) setTodoOpen(true);
+$('#btn-menu').onclick = () => { $('#menu').hidden = !$('#menu').hidden; $('#menu-others').textContent = S.othersMemo ? '다른 분 말풍선 숨기기' : '다른 분 말풍선 보기'; };
 $('#menu').addEventListener('click', (e) => {
   const b = e.target.closest('[data-menu]');
   if (!b) return;
@@ -1596,7 +1647,7 @@ $('#menu').addEventListener('click', (e) => {
     S.othersMemo = !S.othersMemo;
     store.set('othersMemo', S.othersMemo);
     for (const p of S.peers.values()) p.av.setMemos(S.othersMemo ? p.pf.memos : [], p.pf.mm || 'auto', p.pf.mi | 0);
-    toast(S.othersMemo ? '다른 분 메모를 다시 보여요' : '다른 분 메모를 숨겼어요');
+    toast(S.othersMemo ? '다른 분 말풍선을 다시 보여요' : '다른 분 말풍선을 숨겼어요');
   }
 });
 

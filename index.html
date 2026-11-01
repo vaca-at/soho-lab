@@ -4,27 +4,37 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>소호랩 SOHO LAB</title>
-<meta name="description" content="퇴근 후 혼자 개발하는 1인 개발자들이 모이는 3D 사무실. 채팅 없이 각자 일하고, 머리 위 메모로 인사하고, 책상을 눌러 서로의 결과물을 구경해요.">
+<meta name="description" content="퇴근 후 혼자 개발하는 1인 개발자들이 모이는 3D 사무실. 채팅 없이 각자 일하고, 머리 위 말풍선으로 인사하고, 책상을 눌러 서로의 결과물을 구경해요.">
 <meta property="og:title" content="소호랩 SOHO LAB">
-<meta property="og:description" content="혼자지만 같이 일하는 1인 개발자 사무실. 층마다 20자리.">
+<meta property="og:description" content="퇴근 후, 각자 또 같이 일해요. 1인 개발자 3D 사무실">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://soho-lab.site/">
+<meta property="og:site_name" content="소호랩">
+<meta property="og:locale" content="ko_KR">
+<meta property="og:image" content="https://soho-lab.site/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="모니터 앞에 앉은 블록 사람들 머리 위에 어서오세요 · 집중 모드 · 배포 성공 말풍선이 떠 있는 그림">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://soho-lab.site/og.png">
 <meta name="theme-color" content="#14161c">
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/svg+xml" href="favicon.svg?v=2">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="style.css?v=20261101s">
+<link rel="stylesheet" href="style.css?v=20261101t">
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
-  "./js/data.js": "./js/data.js?v=20261101s",
-  "./js/blocky.js": "./js/blocky.js?v=20261101s",
-  "./js/avatar.js": "./js/avatar.js?v=20261101s",
-  "./js/world.js": "./js/world.js?v=20261101s",
-  "./js/net.js": "./js/net.js?v=20261101s",
-  "./js/badwords.js": "./js/badwords.js?v=20261101s"
+  "./js/data.js": "./js/data.js?v=20261101t",
+  "./js/blocky.js": "./js/blocky.js?v=20261101t",
+  "./js/avatar.js": "./js/avatar.js?v=20261101t",
+  "./js/world.js": "./js/world.js?v=20261101t",
+  "./js/net.js": "./js/net.js?v=20261101t",
+  "./js/badwords.js": "./js/badwords.js?v=20261101t",
+  "./js/todo.js": "./js/todo.js?v=20261101t"
 } }
 </script>
 </head>
@@ -36,9 +46,9 @@
 <section id="loading">
   <div class="ld">
     <p class="ld-logo">SOHO LAB</p>
-    <h1>퇴근 후,<br>같이 혼자 일해요</h1>
-    <p class="ld-sub">층마다 책상 20개. 채팅은 없어요.<br>하고 싶은 말은 메모로 적어 두면 머리 위에 떠요.<br>다른 분 책상을 누르면 만들고 있는 걸 구경할 수 있어요.</p>
-    <p class="ld-rule">비속어 · 나쁜 말은 메모에 쓸 수 없어요</p>
+    <h1>퇴근 후,<br>각자 또 같이 일해요</h1>
+    <p class="ld-sub">층마다 책상 20개. 채팅은 없어요.<br>하고 싶은 말은 말풍선으로 적어 두면 머리 위에 떠요.<br>다른 분 책상을 누르면 만들고 있는 걸 구경할 수 있어요.</p>
+    <p class="ld-rule">비속어 · 나쁜 말은 말풍선에 쓸 수 없어요</p>
     <div class="ld-bar"><i></i></div>
     <p class="ld-note">사무실을 둘러보는 중… 곧 자리에 앉아요</p>
   </div>
@@ -69,20 +79,15 @@
   </div>
 </section>
 
-<!-- 내 책상: 메모 · 결과물 · 꾸미기(상점) -->
+<!-- 내 책상 창 하나로 세 가지를 따로 열어요 (탭 없이): 책상 꾸미기 · 말풍선 고치기(✎) · 내 웹 자랑 -->
 <div id="desk-modal" class="modal" hidden>
   <form id="desk-form" class="sheet wide-sheet" novalidate>
-    <header class="panel-head"><h2>내 책상</h2><button type="button" class="icon-btn" data-close="desk-modal" aria-label="닫기">✕</button></header>
-    <div id="desk-tabs" class="tabs" role="tablist">
-      <button type="button" role="tab" data-tab="deco">책상 꾸미기</button>
-      <button type="button" role="tab" data-tab="memo">머리 위 메모</button>
-      <button type="button" role="tab" data-tab="links">자랑하는 결과물</button>
-    </div>
+    <header class="panel-head"><h2 id="desk-title">내 책상 꾸미기</h2><button type="button" class="icon-btn" data-close="desk-modal" aria-label="닫기">✕</button></header>
     <section data-pane="memo" class="group">
-      <p class="rule"><b>비속어 · 나쁜 말 금지</b> 메모는 같은 층 모두의 머리 위에 떠요. 욕설 · 혐오 · 성적인 말이 들어가면 저장되지 않아요.</p>
-      <h3>메모 5개 <small class="muted">30자 · 첫 번째 메모는 '지금 하는 일'처럼 모니터 아래 줄에도 떠요</small></h3>
+      <p class="rule"><b>비속어 · 나쁜 말 금지</b> 말풍선은 같은 층 모두의 머리 위에 떠요. 욕설 · 혐오 · 성적인 말이 들어가면 저장되지 않아요.</p>
+      <h3>말풍선 5개 <small class="muted">30자 · 첫 번째 말풍선은 '지금 하는 일'처럼 모니터 아래 줄에도 떠요</small></h3>
       <div id="pf-memos" class="memo-grid"></div>
-      <p class="muted small">말풍선은 화면 아래 메모 줄에서 <b>자동</b>(돌아가며) · <b>하나</b>(고른 메모만 계속) · <b>없음</b> 중에 골라요.</p>
+      <p class="muted small">화면 아래 말풍선 줄에서 <b>자동</b>(돌아가며) · <b>하나</b>(고른 말풍선만 계속) · <b>없음</b> 중에 골라요.</p>
     </section>
     <section data-pane="links" class="group">
       <h3>자랑하는 결과물 <small class="muted">3개까지 · 책상을 누른 분이 구경하고 접속해요</small></h3>
@@ -201,12 +206,12 @@
     <header class="panel-head"><h2>소호랩 사용법</h2><button class="icon-btn" data-close="guide-modal" aria-label="닫기">✕</button></header>
     <ul class="guide">
       <li><b>들어오면</b> 바로 출근해서 내 책상에 앉아 저절로 코딩해요. 실제 일은 다른 창에서 하시고, 이 창은 켜 두기만 하세요.</li>
-      <li><b>채팅은 없어요.</b> 하고 싶은 말은 <b>내 책상</b>에서 메모 5개로 적어 두면 머리 위에 떠요. 아래 메모 줄에서 <b>자동 · 하나 · 없음</b>을 골라요.</li>
-      <li class="warn"><b>비속어 · 나쁜 말은 메모와 닉네임에 쓸 수 없어요.</b> 같은 층 모두에게 보여요.</li>
+      <li><b>채팅은 없어요.</b> 하고 싶은 말은 아래 말풍선 줄의 <b>✎</b>로 5개 적어 두면 머리 위에 떠요. 말풍선 단추를 누르면 그 말풍선 하나만 떠요. <b>자동 · 하나 · 없음</b>도 거기서 골라요.</li>
+      <li class="warn"><b>비속어 · 나쁜 말은 말풍선과 닉네임에 쓸 수 없어요.</b> 같은 층 모두에게 보여요.</li>
       <li><b>책상 · 모니터 · 캐릭터를 누르면</b> 그 분이 지금 하는 일과 자랑하는 결과물 3개를 보고, 미리보기하거나 접속할 수 있어요.</li>
       <li><b>집중하면 레벨 업</b>: 앉아 있는 1분마다 1 XP · 1 P. 포인트로 맥미니, 맥 모니터, 에스프레소 머신 같은 책상 아이템을 사요.</li>
       <li><b>걷기</b>: W A S D · 방향키 (휴대폰은 왼쪽 아래 조이스틱). 끌어서 화면 돌리기, 휠로 멀리·가까이.</li>
-      <li><b>걸어갔다 오는 동작</b>: 커피 타 오기 · 프린트하기 · 물 마시기 · 화이트보드 · 바람 쐬기. 커피 바 옆 냉장고의 무알콜 맥주 · 콜라 · 사이다는 무제한 무료예요.</li>
+      <li><b>걸어갔다 오는 동작</b>: 물 마시기 · 바람 쐬기 · 프린트하기 · 냉장고 가기 · 커피머신 가기. 커피 바 옆 냉장고의 무알콜 맥주 · 콜라 · 사이다는 무제한 무료예요.</li>
       <li><b>층마다 사무실이 달라요.</b> 엘리베이터를 누르면 다른 층으로 가요. 빈 책상을 누르면 그 자리로 옮겨요.</li>
     </ul>
   </div>
@@ -216,12 +221,16 @@
 <section id="hud" hidden>
   <div class="hud-top">
     <div class="hud-left">
-      <button id="floor-chip" class="glass chip-btn"><span class="lbl"><b id="hud-floor">1F</b><span class="people"><i class="dot"></i><span id="hud-people">1</span>/20</span></span><small class="cap" id="hud-theme">눌러서 다른 층</small></button>
+      <div class="glass floor-pill">
+        <button id="floor-chip" class="chip-btn" title="엘리베이터: 다른 층으로"><span class="lbl"><b id="hud-floor">1F</b></span><small class="cap" id="hud-theme">눌러서 다른 층</small></button>
+        <button id="people-chip" class="people-btn" aria-controls="people-pop" aria-expanded="false" title="이 층에 있는 사람"><span class="people"><i class="dot"></i><span id="hud-people">1</span>/20</span><small class="cap">누가 있나 ▾</small></button>
+      </div>
       <button id="xp-chip" class="glass mini xp" title="집중 경험치"></button>
       <span id="focus-chip" class="glass mini" title="오늘 책상에 앉아 있던 시간"></span>
       <span id="net-chip" class="glass mini warn" hidden></span>
     </div>
     <div class="hud-right">
+      <button id="btn-todo" class="glass icon-btn" aria-controls="todo-panel" aria-expanded="false"><span class="lbl">✅<i id="todo-count" class="todo-count" hidden></i></span><small class="cap">할 일</small></button>
       <button id="btn-char" class="glass icon-btn"><span class="lbl">☺</span><small class="cap">캐릭터</small></button>
       <button id="btn-shop" class="glass icon-btn"><span class="lbl">🪴</span><small class="cap">책상 꾸미기</small></button>
       <button id="btn-web" class="glass icon-btn"><span class="lbl">🌐</span><small class="cap">내 웹 자랑</small></button>
@@ -231,10 +240,16 @@
   </div>
   <div id="menu" class="glass menu" hidden>
     <button data-menu="browse">웹 둘러보기</button>
-    <button data-menu="memo">메모 고치기</button>
+    <button data-menu="memo">말풍선 고치기</button>
     <button data-menu="guide">사용법</button>
     <button data-menu="floor">다른 층으로</button>
-    <button data-menu="others" id="menu-others">다른 분 메모 숨기기</button>
+    <button data-menu="others" id="menu-others">다른 분 말풍선 숨기기</button>
+  </div>
+  <!-- 같은 층 사람: 닉네임 · 자리 · 지금 하는 일 -->
+  <div id="people-pop" class="glass people-pop" role="dialog" aria-label="이 층에 있는 사람" hidden>
+    <header><b id="pp-title"></b><button type="button" class="td-x" id="pp-close" aria-label="닫기">✕</button></header>
+    <ul id="pp-list" class="pp-list"></ul>
+    <button type="button" id="pp-floors" class="pp-floors">🛗 다른 층 보기</button>
   </div>
   <div id="toasts"></div>
   <div id="feed" class="feed" aria-live="polite" aria-label="같은 층 알림"></div>
@@ -242,10 +257,26 @@
     <div id="memo-bar" class="glass memo-bar"></div>
     <nav id="actions" class="glass"></nav>
   </div>
-  <nav id="left-acts" class="side-acts right glass" aria-label="걸어갔다 오기"></nav>
+  <div id="left-acts" class="side-acts right side-col">
+    <button type="button" id="btn-seat" class="glass side-seat"><span>🪑 자리 이동</span><small class="cap">1~20번 고르기</small></button>
+    <nav id="walk-acts" class="glass side-box" aria-label="걸어갔다 오기"></nav>
+  </div>
+  <!-- 할 일 · 메모: 날마다 따로, 이 기기에만 저장 -->
+  <aside id="todo-panel" class="glass todo-panel" aria-label="할 일과 메모" hidden>
+    <header class="td-head">
+      <h2><span class="td-en">TO DO</span>할 일</h2>
+      <span class="td-nav"><button type="button" id="td-prev" aria-label="전날">‹</button><button type="button" id="td-day" class="td-day">오늘</button><button type="button" id="td-next" aria-label="다음 날">›</button></span>
+      <button type="button" class="td-x" id="td-close" aria-label="할 일 닫기">✕</button>
+    </header>
+    <div class="td-prog"><i id="td-bar"></i><span id="td-prog"></span></div>
+    <ul class="td-list" id="td-list"></ul>
+    <form class="td-add" id="td-add"><input id="td-in" maxlength="80" placeholder="할 일 적고 Enter" aria-label="할 일 더하기" autocomplete="off"><button type="submit">더하기</button></form>
+    <details class="td-memo" id="td-memo-box"><summary>🗒 이날 메모</summary><textarea id="td-memo" maxlength="3000" placeholder="아이디어 · 버그 · 내일 할 것 등 자유롭게. 적으면 바로 저장돼요"></textarea></details>
+    <p class="td-foot"><span>이 기기에만 저장 · 다른 분은 못 봐요</span><span id="td-saved" class="td-saved" aria-live="polite"></span></p>
+  </aside>
   <div id="joystick"><div class="knob"></div></div>
 </section>
 
-<script type="module" src="js/main.js?v=20261101s"></script>
+<script type="module" src="js/main.js?v=20261101t"></script>
 </body>
 </html>

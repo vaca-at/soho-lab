@@ -481,3 +481,100 @@ button .cap { display: block; font-size: 10.5px; line-height: 1.3; font-weight: 
 /* 냉장고 캔 그림 */
 .drink .can { width: 46px; height: 80px; filter: drop-shadow(0 6px 6px rgba(0, 0, 0, .45)); transition: transform .15s; }
 .drink:hover .can { transform: translateY(-3px) rotate(-4deg); }
+
+/* 말풍선 줄: 동작 단추처럼 다 펼쳐 둔 작은 단추 [자동 · 하나 · 없음] | 말풍선 5개 | ✎ */
+.memo-bar.bubbles { display: flex; align-items: center; gap: 4px; padding: 4px 6px; border-radius: 14px; overflow-x: auto; max-width: 100%; }
+.bb-mode { flex: none; display: inline-flex; background: rgba(0, 0, 0, .25); border-radius: 9px; padding: 2px; }
+.bb-mode button { height: 24px; padding: 0 8px; border-radius: 7px; font-size: 11.5px; font-weight: 600; color: var(--soft); }
+.bb-mode button:hover { color: var(--text); }
+.bb-mode button[aria-checked="true"] { background: rgba(255, 179, 92, .18); color: var(--amber); }
+.memo-bar.bubbles .act-sep { margin: 4px 2px; }
+.bb-list { display: flex; gap: 3px; }
+.bb { flex: none; height: 26px; padding: 0 9px; border-radius: 8px; font-size: 12px; background: rgba(255, 255, 255, .06); white-space: nowrap; max-width: 130px; overflow: hidden; text-overflow: ellipsis; }
+.bb:hover { background: rgba(255, 255, 255, .13); }
+.bb[aria-pressed="true"] { background: var(--amber); color: var(--amber-ink); font-weight: 700; }
+.bb.edit { color: var(--amber); background: none; padding: 0 7px; }
+.memo-bar.bubbles:has(.bb-mode [aria-checked="true"]:last-child) .bb:not(.edit) { opacity: .55; }
+
+/* 할 일 · 메모: 왼쪽 위 칸 (✅ 단추로 열고 닫기). 열려 있으면 알림 줄은 그 오른쪽으로 */
+#btn-todo .lbl { position: relative; }
+#btn-todo.on { background: rgba(255, 179, 92, .18); border-color: rgba(255, 179, 92, .45); }
+.todo-count { position: absolute; top: -9px; left: 60%; font: 700 9.5px/1 var(--mono); font-style: normal; background: var(--amber); color: var(--amber-ink); padding: 2px 4px; border-radius: 99px; white-space: nowrap; }
+.todo-count.all { background: var(--mint); color: #08241a; }
+.todo-panel { position: absolute; top: calc(max(12px, env(safe-area-inset-top)) + 62px); left: max(12px, env(safe-area-inset-left)); width: 296px; max-height: calc(100% - max(12px, env(safe-area-inset-top)) - 62px - 190px); min-height: 220px; display: flex; flex-direction: column; gap: 8px; padding: 12px 12px 10px; border-radius: 16px; pointer-events: auto; z-index: 3; }
+#hud:has(#todo-panel:not([hidden])) .feed { left: calc(max(12px, env(safe-area-inset-left)) + 308px); }
+.td-head { display: flex; align-items: center; gap: 6px; }
+.td-head h2 { margin: 0; font-size: 15px; display: flex; align-items: baseline; gap: 6px; flex: 1; }
+.td-en { font: 800 11px var(--mono); color: var(--amber); letter-spacing: .08em; }
+.td-nav { display: inline-flex; align-items: center; background: rgba(0, 0, 0, .25); border-radius: 9px; }
+.td-nav button { height: 26px; min-width: 26px; padding: 0 6px; font-size: 14px; color: var(--soft); border-radius: 8px; }
+.td-nav button:hover { color: var(--text); background: rgba(255, 255, 255, .07); }
+.td-nav .td-day { font-size: 12px; font-weight: 700; color: var(--text); min-width: 52px; }
+.td-x { width: 26px; height: 26px; border-radius: 50%; color: var(--soft); font-size: 13px; }
+.td-x:hover { color: var(--text); background: rgba(255, 255, 255, .09); }
+.td-prog { position: relative; height: 4px; margin-right: 36px; border-radius: 4px; background: rgba(255, 255, 255, .08); }
+.td-prog i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--mint); transition: width .3s; }
+.td-prog span { position: absolute; right: -36px; width: 32px; top: -6px; text-align: right; font: 700 10.5px/16px var(--mono); color: var(--soft); }
+.td-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; overflow-y: auto; min-height: 30px; flex: 0 1 auto; scrollbar-width: thin; }
+.td-list li { display: flex; gap: 4px; align-items: center; min-height: 30px; border-radius: 7px; padding: 0 2px; font-size: 13.5px; }
+.td-list li:hover { background: rgba(255, 255, 255, .05); }
+.td-list label { flex: 1; display: flex; gap: 8px; align-items: center; cursor: pointer; min-width: 0; word-break: break-all; line-height: 1.35; padding: 4px 0; }
+.td-list input[type=checkbox] { appearance: none; -webkit-appearance: none; width: 16px; height: 16px; flex: none; margin: 0; border: 1.5px solid #6b7186; border-radius: 4px; cursor: pointer; display: grid; place-items: center; }
+.td-list input[type=checkbox]:checked { background: var(--mint) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.2l2.6 2.6L12 5.4' fill='none' stroke='%2308241a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/100% no-repeat; border-color: var(--mint); }
+.td-list input[type=checkbox]:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.td-list li.done label { color: var(--soft); text-decoration: line-through; text-decoration-color: rgba(167, 173, 189, .6); }
+.td-list .x { flex: none; width: 26px; height: 26px; border-radius: 7px; color: var(--soft); font-size: 16px; opacity: 0; }
+.td-list li:hover .x, .td-list .x:focus-visible { opacity: 1; }
+.td-list .x:hover { color: var(--red); background: rgba(240, 113, 106, .1); }
+.td-list .grip { flex: none; width: 18px; height: 26px; padding: 0; font-size: 14px; line-height: 1; color: #5a6074; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.td-list .grip:hover, .td-list .grip:focus-visible { color: var(--amber); }
+.td-list li.drag { background: rgba(255, 179, 92, .12); box-shadow: inset 0 0 0 1.5px var(--amber); }
+.td-list li.drag .grip { cursor: grabbing; color: var(--amber); }
+.td-list .none { color: var(--soft); font-size: 12.5px; padding: 6px 4px; }
+.td-add { display: flex; gap: 6px; }
+.td-add input { flex: 1; min-width: 0; height: 32px; padding: 0 10px; border-radius: 9px; border: 1px solid var(--line); background: rgba(0, 0, 0, .3); color: var(--text); font: inherit; font-size: 13px; }
+.td-add input:focus { outline: none; border-color: var(--amber); }
+.td-add button { flex: none; height: 32px; padding: 0 12px; border-radius: 9px; background: var(--amber); color: var(--amber-ink); font-weight: 700; font-size: 12.5px; }
+.td-memo summary { cursor: pointer; font-size: 12.5px; font-weight: 600; color: #d6d9e2; padding: 2px 0; list-style-position: inside; }
+.td-memo summary:hover { color: var(--amber); }
+.td-memo textarea { width: 100%; margin-top: 6px; min-height: 96px; max-height: 40vh; resize: vertical; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--line); background: rgba(0, 0, 0, .3); color: var(--text); font: 13px/1.55 var(--sans); }
+.td-memo textarea:focus { outline: none; border-color: var(--amber); }
+.td-foot { margin: 0; display: flex; justify-content: space-between; gap: 8px; font-size: 10.5px; color: #7b8196; }
+.td-saved { color: var(--mint); }
+@media (max-width: 760px) {
+  .todo-panel { left: max(10px, env(safe-area-inset-left)); right: max(10px, env(safe-area-inset-right)); width: auto; max-height: 58%; z-index: 6; }
+  #hud:has(#todo-panel:not([hidden])) .feed { display: none; }
+  .td-list .x { opacity: 1; }
+}
+
+/* 층 칩: [1F 테마 → 엘리베이터] [● 9/20 → 이 층 사람 목록] */
+.floor-pill { display: flex; align-items: stretch; border-radius: 14px; }
+.floor-pill .chip-btn { border-radius: 14px 0 0 14px; padding-right: 12px; }
+.floor-pill .chip-btn:hover, .people-btn:hover, .people-btn[aria-expanded="true"] { background: rgba(255, 255, 255, .08); }
+.people-btn { display: grid; justify-items: start; align-content: center; padding: 7px 12px 6px; border-left: 1px solid var(--line); border-radius: 0 14px 14px 0; font-size: 14px; white-space: nowrap; }
+.people-btn .cap { font-size: 10px; color: var(--soft); }
+.people-pop { position: absolute; top: calc(max(12px, env(safe-area-inset-top)) + 62px); left: max(12px, env(safe-area-inset-left)); width: min(320px, calc(100% - 24px)); max-height: min(60vh, calc(100% - 220px)); display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 16px; z-index: 7; }
+.people-pop header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 4px; font-size: 13.5px; }
+.people-pop header b small { font-weight: 400; color: var(--soft); margin-left: 6px; }
+.pp-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; display: grid; gap: 2px; scrollbar-width: thin; }
+.pp-list button { width: 100%; display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 2px 8px; align-items: center; text-align: left; padding: 7px 8px; border-radius: 10px; }
+.pp-list button:hover, .pp-list button:focus-visible { background: rgba(255, 255, 255, .07); }
+.pp-seat { grid-row: span 2; font: 700 12px var(--mono); color: var(--soft); text-align: center; background: rgba(0, 0, 0, .25); border-radius: 7px; padding: 5px 0; }
+.pp-name { font-size: 13.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-name em { font-style: normal; font-size: 10.5px; font-weight: 700; color: var(--amber-ink); background: var(--amber); border-radius: 99px; padding: 1px 6px; margin-left: 5px; vertical-align: 1px; }
+.pp-st { font-size: 11px; color: var(--mint); white-space: nowrap; }
+.pp-st.away { color: var(--soft); }
+.pp-now { grid-column: 2 / 4; font-size: 11.5px; color: var(--soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-floors { margin-top: 2px; padding: 8px; border-radius: 10px; font-size: 12.5px; color: var(--amber); background: rgba(255, 255, 255, .05); }
+.pp-floors:hover { background: rgba(255, 255, 255, .1); }
+#hud:has(#people-pop:not([hidden])) .feed, #hud:has(#people-pop:not([hidden])) #toasts { visibility: hidden; }
+@media (max-width: 760px) { .people-btn .cap { display: none; } }
+
+/* 오른쪽: [자리 이동] 단추 하나 따로, 그 아래 걸어갔다 오는 동작 5개 */
+#left-acts.side-col { padding: 0; gap: 8px; background: none; border: 0; box-shadow: none; }
+.side-box { display: grid; gap: 2px; padding: 5px; border-radius: 16px; }
+.side-seat { display: grid; gap: 1px; text-align: left; padding: 9px 13px 8px; border-radius: 14px; font-size: 13px; font-weight: 700; }
+.side-seat span { color: #cfe0ff; }
+.side-seat .cap { font-size: 10px; font-weight: 400; margin: 0; color: var(--soft); }
+.side-seat:hover { background: rgba(60, 70, 100, .8); }
+@media (max-width: 760px) { .side-seat .cap { display: none; } .side-seat { padding: 8px 10px; } }

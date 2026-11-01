@@ -198,7 +198,7 @@ export const ACTIONS = [
   { id: 'think', name: '고민', cap: '턱 괴고 생각', dur: 6, feed: '고민에 빠졌습니다.' },
   { id: 'clap', name: '박수', cap: '배포 성공!', dur: 2.6, feed: '박수를 쳤습니다.' },
   // 걸어갔다 오는 동작
-  { id: 't_coffee', name: '커피 타 오기', cap: '커피 바까지', trip: 'coffee', pose: 'pour', feed: '커피를 타러 갔습니다.' },
+  { id: 't_coffee', name: '커피머신 가기', cap: '커피머신까지', trip: 'coffee', pose: 'pour', feed: '커피를 타러 갔습니다.' },
   { id: 't_print', name: '프린트하기', cap: '프린터까지', trip: 'printer', pose: 'print', feed: '프린트하러 갔습니다.' },
   { id: 't_water', name: '물 마시기', cap: '정수기까지', trip: 'water', pose: 'drink', feed: '물 마시러 갔습니다.' },
   { id: 't_board', name: '화이트보드', cap: '아이디어 적기', hidden: true, trip: 'board', pose: 'board', feed: '화이트보드에 뭔가 적으러 갔습니다.' },
@@ -225,7 +225,7 @@ export const DEFAULT_MEMOS = ['어서오세요', '다들 화이팅!', '집중 �
 // 말풍선: auto 돌아가며 · one 하나만 계속 · off 안 띄우기
 export const MEMO_MODES = [
   { id: 'auto', name: '자동', cap: '돌아가며 떠요' },
-  { id: 'one', name: '하나', cap: '고른 메모만' },
+  { id: 'one', name: '하나', cap: '고른 말풍선만' },
   { id: 'off', name: '없음', cap: '안 띄워요' },
 ];
 

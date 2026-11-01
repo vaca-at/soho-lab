@@ -1,14 +1,16 @@
-// 소호랩: 3D 사무실, 내 캐릭터, 같은 층 사람들, 책상 정보 카드, 메모 말풍선.
+// 소호랩: 3D 사무실, 내 캐릭터, 같은 층 사람들, 책상 정보 카드, 메모 말풍선, 집중 경험치 · 책상 꾸미기.
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
-  RELAY_URL, SITE, FLOORS, SEATS, MAX_MEMOS, MAX_LINKS, LIMITS, SKIN_TONES, CHAR_TYPES, GENDERS, OUTFITS, ACCESSORIES, ACTIONS,
-  randomName, defaultLook, defaultProfile, safeUrl, hostOf,
+  RELAY_URL, SITE, FLOORS, SEATS, MAX_MEMOS, MAX_LINKS, MAX_ITEMS, LIMITS, SKIN_TONES, BODIES, CHAR_TYPES, hairName, GENDERS, OUTFITS, ACCESSORIES, ACTIONS,
+  PET_IDS, NEW_PETS, DESK_COLORS, CHAIR_COLORS, MONITORS, KEYBOARDS, CHAIRS, DESK_ITEMS, TIERS, SHOP, shopKey, FREE_OWNED, levelOf, xpForLevel,
+  MEMO_MODES, FLOOR_THEMES, randomName, defaultLook, fixLook, fixProfile, defaultDesk, safeUrl, hostOf,
 } from './data.js';
 import { PETS } from './blocky.js';
 import { Avatar, FONT } from './avatar.js';
-import { buildOffice, collide, paintScreen, SPAWN, ROOM } from './world.js';
+import { buildOffice, collide, paintScreen, paintSecond, dressDesk, SPAWN, ROOM, THEMES } from './world.js';
 import { Net } from './net.js';
+import { findBad } from './badwords.js';
 
 const Q = new URLSearchParams(location.search);
 const $ = (s) => document.querySelector(s);
@@ -22,21 +24,39 @@ const clampFloor = (n) => (Number.isInteger(n) && n >= 1 && n <= FLOORS ? n : 0)
 const lerpAngle = (a, b, t) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * t;
 
 // ───────── 상태 ─────────
-const firstVisit = !store.get('look', null);
 const S = {
-  look: { ...defaultLook(), ...store.get('look', {}) },
+  look: fixLook(store.get('look', null)),
   name: store.get('name', '') || randomName(),
-  profile: { ...defaultProfile(), ...store.get('profile', {}) },
+  profile: fixProfile(store.get('profile', null)),
   floor: clampFloor(+Q.get('f')) || 0,
   seat: -1,
   sitting: false,
   entered: false,
   peers: new Map(), // id → { av, pf, st, seat, tx, tz, try }
-  memoAuto: store.get('memoAuto', true),
+  memoMode: store.get('memoMode', store.get('memoAuto', true) === false ? 'off' : 'auto'),
+  memoIdx: store.get('memoIdx', 0),
   othersMemo: store.get('othersMemo', true),
   walkTo: null,
+  xp: store.get('xp', 0), // 쌓이기만 하는 경험치 (분)
+  pts: store.get('pts', 0), // 아이템 살 때 쓰는 포인트
+  owned: new Set([...FREE_OWNED, ...store.get('owned', [])]),
 };
 if (!store.get('name', '')) store.set('name', S.name);
+// 저장된 책상 꾸미기에서 가지지 않은 것은 빼요
+S.profile.desk = cleanDesk(S.profile.desk);
+function cleanDesk(d) {
+  const ok = (k, id) => S.owned.has(shopKey(k, id));
+  const def = defaultDesk();
+  return {
+    c: DESK_COLORS.some((x) => x.id === d.c) ? d.c : def.c,
+    ch: CHAIR_COLORS.some((x) => x.id === d.ch) ? d.ch : def.ch,
+    mon: ok('mon', d.mon) ? d.mon : 'm',
+    kb: ok('kb', d.kb) ? d.kb : 'basic',
+    chair: ok('chair', d.chair) ? d.chair : 'basic',
+    it: [...new Set(d.it || [])].filter((id) => ok('it', id)),
+  };
+}
+const lv = () => levelOf(S.xp);
 
 // ───────── 3D 기본 ─────────
 const canvas = $('#scene');
@@ -58,7 +78,7 @@ const sun = new THREE.DirectionalLight('#fff0dc', 1.3);
 sun.position.set(6, 16, 5);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-Object.assign(sun.shadow.camera, { left: -17, right: 17, top: 13, bottom: -13, near: 1, far: 40 });
+Object.assign(sun.shadow.camera, { left: -24, right: 24, top: 16, bottom: -16, near: 1, far: 50 });
 sun.shadow.bias = -0.0004;
 sun.shadow.normalBias = 0.03;
 scene.add(sun);
@@ -77,30 +97,51 @@ resize();
 let office;
 let me;
 
+// ───────── 층 테마 ─────────
+const themeFor = (floor) => Q.get('theme') || FLOOR_THEMES[(Math.max(1, floor) - 1) % FLOOR_THEMES.length];
+function setOffice(floor) {
+  const id = themeFor(floor);
+  if (office?.theme.id === id) return;
+  if (office) { scene.remove(office.group); office.dispose(); }
+  office = buildOffice(id);
+  scene.add(office.group);
+  scene.background = new THREE.Color(office.theme.bg);
+  applyTime();
+  refreshAllScreens();
+  office.paintFloor(floor || 1);
+  office.paintBoard(floor || 1, S.peers.size + (S.entered ? 1 : 0));
+}
+
 // ───────── 낮·밤 ─────────
+// 층마다 시간 · 빛이 정해져 있어요 (테마의 hour · light)
 function applyTime() {
-  const h = Q.has('hour') ? +Q.get('hour') : new Date().getHours();
+  if (!office) return;
+  const T = office.theme, L = T.light || {};
+  const h = Q.has('hour') ? +Q.get('hour') : T.hour ?? new Date().getHours();
   office.paintSky(h);
-  const night = h < 6 || h >= 19, day = h >= 8 && h < 17;
-  hemi.intensity = day ? 1.35 : night ? 0.8 : 1.0;
-  sun.intensity = day ? 1.8 : 1.2;
-  sun.color.set(day ? '#fff6ea' : '#ffe6c8');
+  hemi.color.set(L.sky || '#cdd6ff');
+  hemi.groundColor.set(L.ground || '#4a3a2e');
+  hemi.intensity = L.hemi ?? 1;
+  sun.intensity = L.sun ?? 1.2;
+  sun.color.set(L.sunC || '#ffe6c8');
+  renderer.toneMappingExposure = L.exp ?? 1.05;
+  scene.fog = L.fog ? new THREE.Fog(L.fog[0], L.fog[1], L.fog[2]) : null;
 }
 
 // ───────── 카메라 ─────────
 const cam = { yaw: Math.PI, pitch: 0.42, dist: 5.2, target: new THREE.Vector3(0, 1.2, 0), wantYaw: null, wantDist: null };
 function placeCamera(dt) {
   if (!S.entered || !me) {
-    // 첫 화면: 사무실 남쪽 벽 앞에서 천천히 좌우로 둘러본다
+    // 로딩 중: 사무실 남쪽 벽 앞에서 천천히 좌우로 둘러본다
     const a = Math.sin(performance.now() / 1000 * 0.06 + 0.4);
-    camera.position.set(a * 9, 3.1, 9.6);
-    camera.lookAt(-a * 2.5, 0.9, -4.5);
+    camera.position.set(a * 12, 3.1, ROOM.maxZ - 1);
+    camera.lookAt(-a * 3, 0.9, -5);
     return;
   }
   const p = me.group.position;
   const k = Math.min(1, dt * 6);
   // 앉아 있으면 내 모니터 쪽을 본다 (머리 너머로 화면이 보이게)
-  const ry = me.group.rotation.y, ahead = S.sitting ? 0.9 : 0;
+  const ry = me.group.rotation.y, ahead = S.sitting ? 1.0 : 0;
   cam.target.x += (p.x + Math.sin(ry) * ahead - cam.target.x) * k;
   cam.target.z += (p.z + Math.cos(ry) * ahead - cam.target.z) * k;
   cam.target.y += ((S.sitting ? 1.1 : 1.25) - cam.target.y) * k;
@@ -116,7 +157,7 @@ function placeCamera(dt) {
   camera.lookAt(cam.target);
 }
 // 앉으면 어깨 너머로 내 모니터가 보이게
-function camBehind(ry, dist) { cam.wantYaw = ry + Math.PI + 0.35; cam.wantDist = dist * far(); cam.pitch = 0.7; }
+function camBehind(ry, dist, pitch = 0.7) { cam.wantYaw = ry + Math.PI + 0.35; cam.wantDist = dist * far(); cam.pitch = pitch; }
 
 // ───────── 입력 ─────────
 const keys = new Set();
@@ -203,7 +244,7 @@ function pick(x, y) {
   if (!S.entered) return;
   const v = new THREE.Vector2((x / innerWidth) * 2 - 1, -(y / innerHeight) * 2 + 1);
   ray.setFromCamera(v, camera);
-  const targets = [...office.clickables, me.hit, ...[...S.peers.values()].map((p) => p.av.hit)];
+  const targets = [...office.allClickables(), me.hit, ...[...S.peers.values()].map((p) => p.av.hit)];
   // 앉아 있으면 카메라가 내 어깨 너머라 내 몸이 먼저 맞기 쉽다 → 내 몸은 다른 게 없을 때만
   const hits = ray.intersectObjects(targets, false);
   const hit = hits.find((h) => !h.object.userData.me) || hits[0];
@@ -238,7 +279,7 @@ function sitDown() {
   me.speed = 0;
   me.group.position.set(seat.x, 0.42, seat.z);
   me.group.rotation.y = seat.ry;
-  camBehind(seat.ry, 3.2);
+  camBehind(seat.ry, 3.4);
   sendState(true);
   refreshScreen(S.seat);
   renderActions();
@@ -266,9 +307,32 @@ function goSit() {
 }
 
 function goCoffee() {
+  stopTour();
   if (S.sitting) standUp();
-  S.walkTo = { x: 13.7, z: 2.1, t: 0, best: Infinity, stuck: 0, then: () => { me.group.rotation.y = Math.PI / 2; doAct('coffee'); } };
+  const c = office.coffeeSpot;
+  S.walkTo = { x: c.x, z: c.z, t: 0, best: Infinity, stuck: 0, then: () => { me.group.rotation.y = Math.PI / 2; doAct('coffee'); } };
 }
+
+// 사무실 한 바퀴 (자동으로 걷기). 다 돌면 내 자리로 돌아와 앉아요
+let touring = false;
+function startTour() {
+  if (!office?.tour || !me) return;
+  if (S.sitting) standUp();
+  const pts = office.tour, p = me.group.position;
+  let k = 0, best = Infinity;
+  pts.forEach(([x, z], i) => { const d = Math.hypot(x - p.x, z - p.z); if (d < best) { best = d; k = i; } });
+  const seq = [...pts.slice(k), ...pts.slice(0, k), pts[k]];
+  touring = true;
+  const step = (i) => {
+    if (!touring) return;
+    if (i >= seq.length) { touring = false; goSit(); renderActions(); return; }
+    S.walkTo = { x: seq[i][0], z: seq[i][1], t: 0, best: Infinity, stuck: 0, then: () => step(i + 1) };
+  };
+  step(0);
+  renderActions();
+  toast('사무실을 한 바퀴 돌아요. 다시 누르면 내 자리로 돌아가요');
+}
+function stopTour() { if (touring) { touring = false; renderActions(); } }
 
 function moveToSeat(n) {
   if (!net.online) { setMySeat(n); return; }
@@ -287,21 +351,28 @@ function setMySeat(n) {
   toast(`${n + 1}번 책상으로 옮겨요`);
 }
 
-// ───────── 모니터 화면 ─────────
+// ───────── 모니터 화면 · 책상 모습 ─────────
+// 지금 하는 일: '하나' 모드면 고른 메모, 아니면 첫 번째 메모
+const nowOf = (pf) => (pf.mm === 'one' ? pf.memos?.[pf.mi] : pf.memos?.[0]) || '';
 function screenInfo(i) {
   const o = ownerOf(i);
   if (!o) return { state: 'empty' };
   const pf = o === 'me' ? myPf() : S.peers.get(o).pf;
   const sit = o === 'me' ? S.sitting : !!S.peers.get(o).st?.sit;
-  return { state: sit ? 'busy' : 'away', name: pf.n, now: pf.now, title: pf.links?.[0]?.t || '', mine: o === 'me' };
+  const l0 = pf.links?.[0];
+  return { state: sit ? 'busy' : 'away', name: pf.n, now: nowOf(pf), title: l0?.t || '', host: l0 ? hostOf(l0.u) : '', mine: o === 'me' };
 }
 function refreshScreen(i) {
   const seat = office?.seats[i];
   if (!seat) return;
+  const o = ownerOf(i);
+  const deck = o === 'me' ? S.profile.desk : o ? S.peers.get(o).pf.desk : null;
   seat.screen.info = screenInfo(i);
+  dressDesk(seat, deck || null);
   paintScreen(seat);
+  paintSecond(seat);
 }
-function refreshAllScreens() { office.seats.forEach((s) => refreshScreen(s.i)); }
+function refreshAllScreens() { office?.seats.forEach((s) => refreshScreen(s.i)); }
 // 앉아서 일하는 화면은 코드가 한 줄씩 늘어난다 (가까운 화면만 다시 그림)
 let screenT = 0;
 function tickScreens(dt) {
@@ -323,7 +394,7 @@ const _v = new THREE.Vector3();
 // ───────── 내 정보 ─────────
 function myPf() {
   const p = S.profile;
-  return { n: S.name, look: S.look, intro: p.intro, now: p.now, memos: p.memos.slice(0, MAX_MEMOS), links: p.links.slice(0, MAX_LINKS), auto: S.memoAuto };
+  return { n: S.name, look: S.look, memos: p.memos.slice(0, MAX_MEMOS), links: p.links.slice(0, MAX_LINKS), desk: p.desk, mm: S.memoMode, mi: S.memoIdx, lv: lv() };
 }
 let lastSent = null, sendT = 0;
 function sendState(force) {
@@ -334,13 +405,14 @@ function sendState(force) {
   lastSent = st;
   net.sendState(st);
 }
-function memosOf(pf) { return pf.auto === false ? [] : pf.memos; }
+function applyMyMemos() { me?.setMemos(S.profile.memos, S.memoMode, S.memoIdx); }
+function pushProfile() { net.sendProfile(myPf()); if (S.seat >= 0) refreshScreen(S.seat); }
 
 // ───────── 같은 층 사람들 ─────────
 function addOrUpdatePeer(id, pf, seat) {
   let p = S.peers.get(id);
   if (!p) {
-    const av = new Avatar(pf.look, pf.n);
+    const av = new Avatar(fixLook(pf.look), pf.n);
     av.hit.userData.peer = id;
     scene.add(av.group);
     p = { av, pf, st: null, seat: seat ?? -1, tx: SPAWN.x, tz: SPAWN.z, try: SPAWN.ry, shown: false };
@@ -348,13 +420,12 @@ function addOrUpdatePeer(id, pf, seat) {
     S.peers.set(id, p);
     if (S.entered && S.ready) toast(`${pf.n} 님이 출근했어요`);
   } else {
-    if (JSON.stringify(p.pf.look) !== JSON.stringify(pf.look)) p.av.setLook(pf.look);
+    if (JSON.stringify(p.pf.look) !== JSON.stringify(pf.look)) p.av.setLook(fixLook(pf.look));
     if (p.pf.n !== pf.n) p.av.setName(pf.n);
     p.pf = pf;
     if (seat !== undefined) p.seat = seat;
   }
-  p.av.allMemos = pf.memos;
-  p.av.setMemos(S.othersMemo ? memosOf(pf) : []);
+  p.av.setMemos(S.othersMemo ? pf.memos : [], pf.mm || 'auto', pf.mi | 0);
   if (p.seat >= 0) refreshScreen(p.seat);
   updatePeople();
 }
@@ -479,7 +550,7 @@ async function pickDefaultFloor() {
   const saved = clampFloor(store.get('floor', 0));
   const counts = await net.counts();
   if (!counts) return saved || 1;
-  // 이전 층이 비어 있지 않고 자리가 있으면 그대로, 아니면 사람이 가장 많은(자리 남은) 층
+  // 이전 층에 자리가 있으면 그대로, 아니면 사람이 가장 많은(자리 남은) 층
   if (saved && counts[saved - 1] < SEATS) return saved;
   let best = 1, bestN = -1;
   counts.forEach((n, i) => { if (n < SEATS && n > bestN) { best = i + 1; bestN = n; } });
@@ -491,13 +562,14 @@ function fade(on) { $('#fade').classList.toggle('on', on); return new Promise((r
 async function enter(floor) {
   await fade(true);
   closeAll();
-  S.floor = floor;
-  store.set('floor', floor);
-  history.replaceState(null, '', `?f=${floor}${Q.has('relay') ? '&relay=' + Q.get('relay') : ''}${Q.has('solo') ? '&solo' : ''}`);
   clearPeers();
   const old = S.seat;
   S.seat = -1;
   refreshScreen(old);
+  S.floor = floor;
+  store.set('floor', floor);
+  history.replaceState(null, '', `?f=${floor}${Q.has('relay') ? '&relay=' + Q.get('relay') : ''}${Q.has('solo') ? '&solo' : ''}${Q.has('theme') ? '&theme=' + Q.get('theme') : ''}`);
+  setOffice(floor);
   S.sitting = false;
   if (!me) {
     me = new Avatar(S.look, S.name, { mine: true });
@@ -505,41 +577,29 @@ async function enter(floor) {
     scene.add(me.group);
   }
   me.seated = false;
-  me.setMemos(S.memoAuto ? S.profile.memos : []);
-  me.allMemos = S.profile.memos;
+  applyMyMemos();
   me.group.position.set(SPAWN.x, 0, SPAWN.z);
   me.group.rotation.y = SPAWN.ry;
   cam.yaw = 0; cam.pitch = 0.42; cam.dist = 5.2 * far();
   cam.target.set(SPAWN.x, 1.2, SPAWN.z);
   S.entered = true;
-  $('#intro').hidden = true;
   $('#hud').hidden = false;
   $('#hud-floor').textContent = `${floor}F`;
+  $('#hud-theme').textContent = office.theme.name;
   office.paintFloor(floor);
   updatePeople();
   renderMemoBar();
   renderActions();
+  renderXp();
   net.sendProfile(myPf());
   if (Q.has('demo')) { demo(+Q.get('demo') || 12); }
-  else net.join(floor, store.get('seat' + floor, -1));
-  if (!RELAY_URL && !Q.has('demo')) { S.seat = Math.max(0, store.get('seat' + floor, 0)); goSit(); refreshAllScreens(); }
+  // 자리는 입구에서 가까운 1번부터 채워요 (서버가 빈 자리 중 가장 작은 번호를 줘요)
+  else net.join(floor, -1);
+  if (!RELAY_URL && !Q.has('demo')) { S.seat = 0; goSit(); refreshAllScreens(); }
   await fade(false);
-  if (!store.get('seenGuide', false)) { store.set('seenGuide', true); setTimeout(() => toast('책상·모니터·캐릭터를 누르면 그 분의 작업을 볼 수 있어요', 6000), 1200); }
+  if (!store.get('seenGuide2', false)) { store.set('seenGuide2', true); setTimeout(() => toast('책상·모니터·캐릭터를 누르면 그 분의 작업을 볼 수 있어요', 6000), 1200); setTimeout(() => toast('앉아 있는 1분마다 1 XP · 1 P가 쌓여요. 내 책상에서 아이템을 사 보세요', 6000), 4000); }
 }
 
-function leave() {
-  net.leave();
-  clearPeers();
-  const old = S.seat;
-  S.seat = -1;
-  S.sitting = false;
-  S.entered = false;
-  refreshScreen(old);
-  if (me) { me.dispose(); me = null; }
-  $('#hud').hidden = true;
-  closeAll();
-  showIntro();
-}
 
 // ───────── 동작 · 메모 ─────────
 function doAct(id) {
@@ -553,8 +613,9 @@ function renderActions() {
   el.innerHTML = '';
   const sitBtn = document.createElement('button');
   sitBtn.className = 'act sit';
-  sitBtn.innerHTML = S.sitting ? '<span>일어나기</span><small class="cap">자리에서 걷기</small>' : '<span>내 자리로</span><small class="cap">앉아서 코딩</small>';
-  sitBtn.onclick = () => (S.sitting ? standUp() : goSit());
+  // 앉아 있으면 [사무실 한 바퀴], 걷고 있으면 [내 자리로]
+  sitBtn.innerHTML = S.sitting ? '<span>사무실 한 바퀴</span><small class="cap">자동으로 걷기</small>' : '<span>내 자리로</span><small class="cap">앉아서 코딩</small>';
+  sitBtn.onclick = () => { if (S.sitting) startTour(); else { stopTour(); goSit(); } };
   el.append(sitBtn);
   for (const a of ACTIONS.filter((x) => !x.auto)) {
     const b = document.createElement('button');
@@ -565,36 +626,54 @@ function renderActions() {
   }
 }
 
+// 메모 줄: [자동 | 하나 | 없음] + 메모 5개. '하나'일 때 누른 메모가 계속 떠 있어요
+function setMemoMode(mode, idx = S.memoIdx) {
+  S.memoMode = mode;
+  S.memoIdx = Math.max(0, Math.min(MAX_MEMOS - 1, idx));
+  store.set('memoMode', S.memoMode);
+  store.set('memoIdx', S.memoIdx);
+  applyMyMemos();
+  pushProfile();
+  renderMemoBar();
+}
 function renderMemoBar() {
   const el = $('#memo-bar');
   el.innerHTML = '';
-  const auto = document.createElement('button');
-  auto.className = 'memo auto';
-  auto.setAttribute('aria-pressed', S.memoAuto);
-  auto.textContent = S.memoAuto ? 'AUTO' : 'OFF';
-  auto.title = S.memoAuto ? '메모가 저절로 돌아가며 떠요 (누르면 끄기)' : '메모가 저절로 뜨지 않아요 (누르면 켜기)';
-  auto.onclick = () => {
-    S.memoAuto = !S.memoAuto;
-    store.set('memoAuto', S.memoAuto);
-    me?.setMemos(S.memoAuto ? S.profile.memos : []);
-    net.sendProfile(myPf());
-    renderMemoBar();
-    toast(S.memoAuto ? '메모가 머리 위에 돌아가며 떠요' : '메모 자동 띄우기를 껐어요. 메모를 누르면 하나씩 띄워요');
-  };
-  el.append(auto);
+  const seg = document.createElement('div');
+  seg.className = 'memo-seg';
+  seg.setAttribute('role', 'radiogroup');
+  seg.setAttribute('aria-label', '말풍선');
+  for (const m of MEMO_MODES) {
+    const b = document.createElement('button');
+    b.className = 'seg';
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', S.memoMode === m.id);
+    b.title = m.cap;
+    b.textContent = m.name;
+    b.onclick = () => {
+      setMemoMode(m.id);
+      toast(m.id === 'auto' ? '메모가 머리 위에 돌아가며 떠요' : m.id === 'one' ? `"${S.profile.memos[S.memoIdx] || ''}" 메모만 계속 떠요. 다른 메모를 누르면 바뀌어요` : '말풍선을 껐어요. 메모를 누르면 한 번만 띄워요');
+    };
+    seg.append(b);
+  }
+  el.append(seg);
   S.profile.memos.forEach((m, i) => {
     if (!m.trim()) return;
     const b = document.createElement('button');
     b.className = 'memo';
     b.textContent = m;
-    b.title = '지금 머리 위에 띄우기';
-    b.onclick = () => { me?.pin(i); net.sendAct({ m: i }); };
+    if (S.memoMode === 'one') { b.setAttribute('aria-pressed', i === S.memoIdx); b.title = '이 메모를 계속 띄우기'; }
+    else b.title = '지금 머리 위에 한 번 띄우기';
+    b.onclick = () => {
+      if (S.memoMode === 'one') { setMemoMode('one', i); return; }
+      me?.pin(i); net.sendAct({ m: i });
+    };
     el.append(b);
   });
   const ed = document.createElement('button');
   ed.className = 'memo edit';
   ed.textContent = '✎ 메모 고치기';
-  ed.onclick = () => openDesk();
+  ed.onclick = () => openDesk('memo');
   el.append(ed);
 }
 
@@ -615,21 +694,21 @@ function openCard(i, who) {
     const mine = o === 'me';
     const pf = mine ? myPf() : S.peers.get(o).pf;
     const sit = mine ? S.sitting : !!S.peers.get(o).st?.sit;
-    const links = (pf.links || []).map((l, k) => {
+    const links = (pf.links || []).slice(0, MAX_LINKS).map((l, k) => {
       const host = hostOf(l.u);
       const init = (l.t || host || '?').trim()[0] || '?';
       return `<div class="c-link"><span class="c-tile" style="background:${TILE_COLORS[(host.length + k) % TILE_COLORS.length]}">${esc(init)}</span>
         <div><b>${esc(l.t || host)}</b><span class="host">${esc(host)}</span>${l.d ? `<p>${esc(l.d)}</p>` : ''}</div>
         <div class="acts"><button class="ghost small-btn" data-peek="${k}">미리보기</button><a class="primary small-btn" href="${esc(l.u)}" target="_blank" rel="noopener noreferrer">접속하기 ↗</a></div></div>`;
     }).join('');
-    const memos = (pf.memos || []).filter((m) => m.trim()).map((m) => `<span>${esc(m)}</span>`).join('');
+    const now = nowOf(pf);
+    const memos = (pf.memos || []).filter((m) => m.trim() && m !== now).map((m) => `<span>${esc(m)}</span>`).join('');
     body.innerHTML = `<div class="c-head"><span class="c-seat">DESK ${String(i + 1).padStart(2, '0')}${mine ? ' · 내 책상' : ''}</span>
-        <span class="c-name">${esc(pf.n)}</span>
-        ${pf.intro ? `<span class="c-intro">${esc(pf.intro)}</span>` : ''}
+        <span class="c-name">${esc(pf.n)} <small class="c-lv">Lv ${pf.lv || 1}</small></span>
         <span class="c-status ${sit ? '' : 'away'}"><i></i>${sit ? '책상에서 코딩 중' : '잠깐 자리 비움'}</span></div>
-      ${pf.now ? `<div class="c-now"><small>지금 하는 일</small>${esc(pf.now)}</div>` : ''}
-      <p class="c-label">만든 것 ${pf.links?.length ? `· ${pf.links.length}개` : ''}</p>
-      ${links ? `<div class="c-links">${links}</div>` : `<p class="c-empty">${mine ? '아직 올린 결과물이 없어요. 내 책상 꾸미기에서 링크를 넣어 보세요.' : '아직 올린 결과물이 없어요.'}</p>`}
+      ${now ? `<div class="c-now"><small>지금</small>${esc(now)}</div>` : ''}
+      <p class="c-label">자랑하는 결과물 ${pf.links?.length ? `· ${Math.min(MAX_LINKS, pf.links.length)}개` : ''}</p>
+      ${links ? `<div class="c-links">${links}</div>` : `<p class="c-empty">${mine ? '아직 올린 결과물이 없어요. 내 책상에서 3개까지 자랑할 수 있어요.' : '아직 올린 결과물이 없어요.'}</p>`}
       ${memos ? `<p class="c-label">메모</p><div class="c-memos">${memos}</div>` : ''}
       ${mine ? `<div class="c-acts"><button class="ghost small-btn" id="c-edit">내 책상 꾸미기</button>${S.sitting ? '' : '<button class="primary small-btn" id="c-sit">앉기</button>'}</div>` : ''}`;
     body.querySelectorAll('[data-peek]').forEach((b) => (b.onclick = () => peek(pf.links[+b.dataset.peek])));
@@ -661,6 +740,11 @@ function closeModal(id) {
   $('#' + id).hidden = true;
   if (id === 'peek-modal') $('#peek-iframe').src = 'about:blank';
   if (id === 'creator') stopPreview();
+  if (id === 'desk-modal') {
+    $('#desk-modal').classList.remove('look-desk');
+    if (me) { me.tag.visible = true; me.memoOn = true; }
+    if (S.sitting) camBehind(office.seats[S.seat].ry, 3.4);
+  }
 }
 function closeAll() { ['desk-modal', 'peek-modal', 'floor-modal', 'guide-modal'].forEach(closeModal); if (!$('#creator').hidden) closeModal('creator'); closeCard(); $('#menu').hidden = true; }
 document.addEventListener('click', (e) => {
@@ -687,14 +771,15 @@ async function openFloors() {
     grid.innerHTML = '';
     for (let f = 1; f <= FLOORS; f++) {
       const n = counts ? counts[f - 1] : null;
+      const th = THEMES.find((t) => t.id === themeFor(f));
       const b = document.createElement('button');
       b.className = 'floor-btn';
       if (f === S.floor && S.entered) b.setAttribute('aria-current', 'true');
       b.disabled = n != null && n >= SEATS && f !== S.floor;
-      b.innerHTML = `<b>${f}F</b><span>${n == null ? '인원 확인 중' : n >= SEATS ? '자리 없음' : `${n}명 일하는 중`}</span><span class="bar"><i style="width:${((n || 0) / SEATS) * 100}%"></i></span>`;
+      b.innerHTML = `<b>${f}F</b><span>${esc(th?.name || '')} · ${n == null ? '인원 확인 중' : n >= SEATS ? '자리 없음' : `${n}명`}</span><span class="bar"><i style="width:${((n || 0) / SEATS) * 100}%"></i></span>`;
       b.onclick = () => {
         closeModal('floor-modal');
-        if (!S.entered) { S.floor = f; updateIntro(); return; }
+        if (!S.entered) { S.floor = f; enter(f); return; }
         if (f !== S.floor) enter(f);
       };
       grid.append(b);
@@ -706,17 +791,16 @@ async function openFloors() {
   draw(counts || Array(FLOORS).fill(0));
 }
 
-// ───────── 내 책상 꾸미기 ─────────
-function openDesk() {
+// ───────── 내 책상 (메모 · 결과물 · 꾸미기 · 상점) ─────────
+let deskTab = 'memo';
+function openDesk(tab = deskTab) {
   closeCard();
   const p = S.profile;
-  $('#pf-intro').value = p.intro;
-  $('#pf-now').value = p.now;
   const mg = $('#pf-memos');
   mg.innerHTML = '';
   for (let i = 0; i < MAX_MEMOS; i++) {
     const l = document.createElement('label');
-    l.innerHTML = `<input maxlength="${LIMITS.memo}" placeholder="메모 ${i + 1}" aria-label="메모 ${i + 1}">`;
+    l.innerHTML = `<input maxlength="${LIMITS.memo}" placeholder="메모 ${i + 1}${i === 0 ? ' (지금 하는 일처럼 모니터에도 떠요)' : ''}" aria-label="메모 ${i + 1}">`;
     l.querySelector('input').value = p.memos[i] || '';
     mg.append(l);
   }
@@ -724,8 +808,26 @@ function openDesk() {
   lr.innerHTML = '';
   p.links.forEach(addLinkRow);
   $('#pf-add').hidden = p.links.length >= MAX_LINKS;
+  $('#pf-error').hidden = true;
+  setDeskTab(tab);
   openModal('desk-modal');
 }
+function setDeskTab(tab) {
+  deskTab = tab;
+  for (const b of $$('#desk-tabs [data-tab]')) b.setAttribute('aria-selected', b.dataset.tab === tab);
+  for (const s of $$('#desk-form [data-pane]')) s.hidden = s.dataset.pane !== tab;
+  $('#desk-save').hidden = tab === 'deco';
+  // 꾸미기: 창을 오른쪽으로 비켜 두고 카메라가 내 책상을 내려다봐요
+  $('#desk-modal').classList.toggle('look-desk', tab === 'deco');
+  if (tab === 'deco') {
+    renderDeco();
+    const seat = office?.seats[S.seat];
+    if (seat && S.entered) { if (!S.sitting) goSit(); camBehind(seat.ry, 4.2, 1.1); }
+  }
+  // 꾸미는 동안에는 내 이름표 · 말풍선이 책상을 가리지 않게
+  if (me) { me.tag.visible = tab !== 'deco'; me.memoOn = tab !== 'deco'; }
+}
+$('#desk-tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) setDeskTab(b.dataset.tab); });
 function addLinkRow(l = { t: '', u: '', d: '' }) {
   const lr = $('#pf-links');
   if (lr.children.length >= MAX_LINKS) return;
@@ -743,8 +845,10 @@ function addLinkRow(l = { t: '', u: '', d: '' }) {
   $('#pf-add').hidden = lr.children.length >= MAX_LINKS;
 }
 $('#pf-add').onclick = () => addLinkRow();
+function showFormError(msg) { const e = $('#pf-error'); e.textContent = msg; e.hidden = false; }
 $('#desk-form').addEventListener('submit', (e) => {
   e.preventDefault();
+  const memos = $$('#pf-memos input').map((i) => i.value.trim().slice(0, LIMITS.memo));
   const links = [];
   let bad = 0;
   for (const row of $$('#pf-links .link-row')) {
@@ -754,22 +858,134 @@ $('#desk-form').addEventListener('submit', (e) => {
     if (!u) { bad++; continue; }
     links.push({ t: row.querySelector('.t').value.trim().slice(0, LIMITS.title), u, d: row.querySelector('.desc').value.trim().slice(0, LIMITS.desc) });
   }
-  S.profile = {
-    intro: $('#pf-intro').value.trim().slice(0, LIMITS.intro),
-    now: $('#pf-now').value.trim().slice(0, LIMITS.now),
-    memos: $$('#pf-memos input').map((i) => i.value.trim().slice(0, LIMITS.memo)),
-    links,
-  };
+  // 비속어 · 나쁜 말은 저장하지 않아요
+  for (const [k, m] of memos.entries()) { const w = findBad(m); if (w) { setDeskTab('memo'); showFormError(`메모 ${k + 1}에 쓸 수 없는 말이 있어요. 비속어 · 나쁜 말은 같은 층 모두에게 보이니 고쳐 주세요.`); $$('#pf-memos input')[k].focus(); return; } }
+  for (const l of links) if (findBad(l.t + ' ' + l.d)) { setDeskTab('links'); showFormError('결과물 이름이나 설명에 쓸 수 없는 말이 있어요.'); return; }
+  S.profile = { ...S.profile, memos, links: links.slice(0, MAX_LINKS) };
   store.set('profile', S.profile);
-  if (me) { me.setMemos(S.memoAuto ? S.profile.memos : []); me.allMemos = S.profile.memos; }
-  net.sendProfile(myPf());
-  if (S.seat >= 0) refreshScreen(S.seat);
+  if (S.memoMode === 'one' && !memos[S.memoIdx]?.trim()) S.memoIdx = Math.max(0, memos.findIndex((m) => m.trim()));
+  applyMyMemos();
+  pushProfile();
   renderMemoBar();
-  updateIntro();
   closeModal('desk-modal');
   toast(bad ? `저장했어요. 주소가 이상한 결과물 ${bad}개는 뺐어요` : '내 책상을 저장했어요');
-  if (S.enterAfterDesk && !S.entered) { S.enterAfterDesk = false; enter(S.floor || 1); }
 });
+
+// 꾸미기 · 상점
+function saveDesk() {
+  store.set('profile', S.profile);
+  pushProfile();
+}
+function buy(kind, it) {
+  const key = shopKey(kind, it.id);
+  if (S.owned.has(key)) return true;
+  if (lv() < it.lv) { toast(`Lv ${it.lv}부터 살 수 있어요 (지금 Lv ${lv()})`); return false; }
+  if (S.pts < it.price) { toast(`포인트가 ${it.price - S.pts}P 모자라요. 책상에 앉아 집중하면 1분에 1P씩 쌓여요`); return false; }
+  S.pts -= it.price;
+  S.owned.add(key);
+  store.set('pts', S.pts);
+  store.set('owned', [...S.owned].filter((k) => !FREE_OWNED.includes(k)));
+  toast(`${it.name}을(를) 샀어요 (−${it.price}P)`);
+  renderXp();
+  return true;
+}
+function shopCard(kind, it, selected, onPick) {
+  const owned = S.owned.has(shopKey(kind, it.id));
+  const locked = !owned && lv() < it.lv;
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = `shop-card tier${it.tier}${owned ? ' owned' : ''}${locked ? ' locked' : ''}`;
+  b.setAttribute('aria-pressed', !!selected);
+  b.innerHTML = `<span class="nm">${esc(it.name)}</span>${it.cap ? `<small>${esc(it.cap)}</small>` : ''}<span class="pr">${owned ? (selected ? '놓는 중' : '가지고 있음') : locked ? `🔒 Lv ${it.lv}` : `${it.price.toLocaleString()} P`}</span>`;
+  b.onclick = () => { if (!owned && !buy(kind, it)) return; onPick(); };
+  return b;
+}
+function renderDeco() {
+  const d = S.profile.desk;
+  const apply = () => { S.profile.desk = cleanDesk(d); saveDesk(); renderDeco(); };
+  const sw = (el, list, key) => {
+    el.innerHTML = '';
+    for (const c of list) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'swatch'; b.style.background = c.c; b.title = c.name;
+      b.setAttribute('aria-label', c.name); b.setAttribute('aria-pressed', d[key] === c.id);
+      b.onclick = () => { d[key] = c.id; apply(); };
+      el.append(b);
+    }
+  };
+  sw($('#deco-color'), DESK_COLORS, 'c');
+  sw($('#deco-chaircolor'), CHAIR_COLORS, 'ch');
+  for (const [kind, key, el] of [['mon', 'mon', '#deco-mon'], ['kb', 'kb', '#deco-kb'], ['chair', 'chair', '#deco-chair']]) {
+    const box = $(el);
+    box.innerHTML = '';
+    for (const it of SHOP[kind]) box.append(shopCard(kind, it, d[key] === it.id, () => { d[key] = it.id; apply(); }));
+  }
+  const slotCount = d.it.filter((id) => !DESK_ITEMS.find((x) => x.id === id)?.spot).length;
+  $('#deco-count').textContent = `책상 위 ${slotCount}/${MAX_ITEMS}`;
+  const items = $('#deco-items');
+  items.innerHTML = '';
+  for (const tier of [0, 1, 2, 3]) {
+    const h = document.createElement('p');
+    h.className = 'tier-h';
+    h.textContent = TIERS[tier];
+    items.append(h);
+    const row = document.createElement('div');
+    row.className = 'shop-grid';
+    for (const it of DESK_ITEMS.filter((x) => x.tier === tier)) {
+      const on = d.it.includes(it.id);
+      row.append(shopCard('it', it, on, () => {
+        if (on) d.it = d.it.filter((x) => x !== it.id);
+        else {
+          if (!it.spot && slotCount >= MAX_ITEMS) { toast(`책상 위에는 ${MAX_ITEMS}개까지 놓을 수 있어요. 하나를 먼저 치워 주세요`); return; }
+          d.it = [...d.it, it.id];
+        }
+        apply();
+      }));
+    }
+    items.append(row);
+  }
+  renderXp();
+}
+
+// ───────── 집중 → 경험치 · 포인트 ─────────
+function renderXp() {
+  const L = lv(), a = xpForLevel(L), b = xpForLevel(L + 1);
+  const pct = Math.round(((S.xp - a) / (b - a)) * 100);
+  $('#xp-chip').innerHTML = `<b>Lv ${L}</b><span class="xp-bar"><i style="width:${pct}%"></i></span><span>${S.pts.toLocaleString()} P</span>`;
+  $('#xp-chip').title = `경험치 ${S.xp} · 다음 레벨까지 ${b - S.xp}분 집중`;
+  const w = $('#deco-wallet');
+  if (w) w.innerHTML = `<b>Lv ${L}</b> · 다음 레벨까지 ${b - S.xp}분 · <b class="pts">${S.pts.toLocaleString()} P</b>`;
+}
+const today = () => new Date().toLocaleDateString('sv');
+let focusLast = Date.now(), focusCarry = store.get('focusCarry', 0);
+function tickFocus() {
+  const now = Date.now();
+  const dt = Math.min(90, (now - focusLast) / 1000);
+  focusLast = now;
+  if (!S.entered) { $('#focus-chip').hidden = true; return; }
+  const key = 'focus.' + today();
+  let s = store.get(key, 0);
+  if (S.sitting) {
+    s += dt; store.set(key, Math.round(s));
+    // 앉아 있던 60초마다 1 XP · 1 P
+    focusCarry += dt;
+    if (focusCarry >= 60) {
+      const n = Math.floor(focusCarry / 60);
+      focusCarry -= n * 60;
+      const before = lv();
+      S.xp += n; S.pts += n;
+      store.set('xp', S.xp); store.set('pts', S.pts);
+      renderXp();
+      if (lv() > before) { toast(`레벨 업! Lv ${lv()} · 새 아이템을 살 수 있어요`, 5000); me?.play('clap'); pushProfile(); }
+    }
+    store.set('focusCarry', Math.round(focusCarry));
+  }
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  const el = $('#focus-chip');
+  el.hidden = false;
+  el.textContent = `오늘 ${h ? h + '시간 ' : ''}${m}분 집중`;
+}
+setInterval(tickFocus, 1000);
 
 // ───────── 캐릭터 꾸미기 ─────────
 let pv = null;
@@ -786,7 +1002,7 @@ function startPreview() {
   const cm = new THREE.PerspectiveCamera(32, 1, 0.1, 50);
   cm.position.set(0, 1.3, 4.6);
   cm.lookAt(0, 0.85, 0);
-  const av = new Avatar(S.look, '', {});
+  const av = new Avatar(S.draft, '', {});
   av.tag.visible = false;
   av.memoOn = false;
   sc.add(av.group);
@@ -800,7 +1016,7 @@ function startPreview() {
   let last = performance.now();
   const loop = () => {
     raf = requestAnimationFrame(loop);
-    const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now;
+    const now = performance.now(), dt = Math.min(0.1, (now - last) / 1000); last = now;
     const w = c.clientWidth, h = c.clientHeight;
     if (c.width !== Math.floor(w * r.getPixelRatio())) { r.setSize(w, h, false); cm.aspect = w / h; cm.updateProjectionMatrix(); }
     if (drag == null) rot += dt * 0.25;
@@ -813,24 +1029,45 @@ function startPreview() {
 }
 function stopPreview() { pv?.stop(); pv = null; }
 
-function chips(el, list, key, label = (x) => x.name) {
+function bodySvg(B) {
+  const u = 26, base = 58, leg = 0.46 * B.leg * B.k * u, th = 0.56 * B.th * B.k * u, hd = 0.52 * B.head * B.k * u, tw = 0.5 * B.tw * B.k * u;
+  const lw = 0.2 * B.limb * B.k * u, aw = 0.15 * B.limb * B.k * u, cx = 24;
+  const ty = base - leg - th, hy = ty - hd - 0.5;
+  return `<svg viewBox="0 0 48 60" aria-hidden="true">
+    <rect x="${cx - tw * 0.24 - lw / 2}" y="${base - leg}" width="${lw}" height="${leg}" rx="1"/><rect x="${cx + tw * 0.24 - lw / 2}" y="${base - leg}" width="${lw}" height="${leg}" rx="1"/>
+    <rect x="${cx - tw / 2}" y="${ty}" width="${tw}" height="${th}" rx="1.5"/>
+    <rect x="${cx - tw / 2 - aw - 0.4}" y="${ty + 0.5}" width="${aw}" height="${th * 0.82}" rx="1"/><rect x="${cx + tw / 2 + 0.4}" y="${ty + 0.5}" width="${aw}" height="${th * 0.82}" rx="1"/>
+    <rect x="${cx - hd / 2}" y="${hy}" width="${hd}" height="${hd}" rx="2"/></svg>`;
+}
+function chips(el, list, key, label = (x) => x.name, cap) {
   el.innerHTML = '';
   for (const it of list) {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'chip';
-    b.textContent = label(it);
+    b.innerHTML = `<span>${esc(label(it))}</span>${cap?.(it) ? `<small class="cap">${esc(cap(it))}</small>` : ''}`;
     b.setAttribute('aria-pressed', S.draft[key] === it.id);
     b.onclick = () => { S.draft[key] = it.id; renderCreator(); };
     el.append(b);
   }
 }
 function renderCreator() {
-  chips($('#opt-gender'), GENDERS, 'gender', (g) => g.cap);
-  chips($('#opt-type'), CHAR_TYPES, 'type');
-  chips($('#opt-outfit'), OUTFITS, 'outfit');
+  const bd = $('#opt-body');
+  bd.innerHTML = '';
+  for (const B of BODIES) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'body-pick'; b.title = B.label;
+    b.setAttribute('aria-label', B.label); b.setAttribute('aria-pressed', S.draft.body === B.id);
+    b.innerHTML = bodySvg(B);
+    b.onclick = () => { S.draft.body = B.id; renderCreator(); };
+    bd.append(b);
+  }
+  $('#body-name').textContent = BODIES.find((B) => B.id === S.draft.body)?.label || '';
+  chips($('#opt-gender'), GENDERS, 'gender', (g) => g.name);
+  chips($('#opt-type'), CHAR_TYPES, 'type', (t) => hairName(t, S.draft.gender), (t) => t.color);
+  chips($('#opt-outfit'), OUTFITS.filter((o) => !o.hidden), 'outfit', (o) => o.name, (o) => o.cap);
   chips($('#opt-acc'), ACCESSORIES, 'acc');
-  chips($('#opt-pet'), PETS.filter((p) => !p.hidden), 'pet');
+  chips($('#opt-pet'), PET_IDS.map((id) => PETS.find((p) => p.id === id)).filter(Boolean), 'pet', (p) => p.name + (NEW_PETS.has(p.id) ? ' NEW' : ''), (p) => p.cap);
   const sk = $('#opt-skin');
   sk.innerHTML = '';
   for (const c of SKIN_TONES) {
@@ -848,49 +1085,30 @@ function renderCreator() {
 function openCreator() {
   S.draft = { ...S.look };
   $('#nick').value = S.name;
+  $('#nick-error').hidden = true;
   $('#creator').hidden = false;
   startPreview();
   renderCreator();
 }
 $('#nick-dice').onclick = () => { $('#nick').value = randomName(); };
 $('#creator-done').onclick = () => {
-  S.look = { ...S.draft };
-  S.name = $('#nick').value.trim().slice(0, LIMITS.name) || randomName();
+  const nick = $('#nick').value.trim().slice(0, LIMITS.name) || randomName();
+  if (findBad(nick)) { const e = $('#nick-error'); e.textContent = '닉네임에 쓸 수 없는 말이 있어요. 다른 이름으로 바꿔 주세요.'; e.hidden = false; $('#nick').focus(); return; }
+  S.look = fixLook(S.draft);
+  S.name = nick;
   store.set('look', S.look);
   store.set('name', S.name);
   if (me) { me.setLook(S.look); me.setName(S.name); }
-  net.sendProfile(myPf());
-  if (S.seat >= 0) refreshScreen(S.seat);
+  pushProfile();
   closeModal('creator');
-  updateIntro();
-  // 처음 온 분: 캐릭터 → 내 책상 꾸미기 → 저장하면 바로 출근
-  if (S.firstRun) { S.firstRun = false; S.enterAfterDesk = true; openDesk(); }
 };
-
-// ───────── 첫 화면 ─────────
-function updateIntro() {
-  $('#intro-name').textContent = S.name;
-  $('#intro-now').textContent = S.profile.now || '지금 하는 일을 적어 보세요 (내 책상)';
-  $('#enter-label').textContent = S.floor ? `${S.floor}층으로 출근하기` : '출근하기';
-}
-async function showIntro() {
-  $('#intro').hidden = false;
-  if (!S.floor) S.floor = await pickDefaultFloor();
-  updateIntro();
-}
-$('#btn-enter').onclick = () => { if (S.firstRun) { openCreator(); return; } enter(S.floor || 1); };
-$('#intro-char').onclick = openCreator;
-$('#intro-desk').onclick = openDesk;
-$('#intro-floor').onclick = openFloors;
 
 // ───────── 화면 위 단추 ─────────
 $('#floor-chip').onclick = openFloors;
-$('#btn-desk').onclick = openDesk;
+$('#btn-desk').onclick = () => openDesk();
+$('#btn-shop').onclick = () => openDesk('deco');
+$('#xp-chip').onclick = () => openDesk('deco');
 $('#btn-char').onclick = openCreator;
-$('#btn-copy').onclick = async () => {
-  const url = `${SITE}/?f=${S.floor}`;
-  try { await navigator.clipboard.writeText(url); toast('이 층 링크를 복사했어요'); } catch { prompt('이 링크를 복사하세요', url); }
-};
 $('#btn-menu').onclick = () => { $('#menu').hidden = !$('#menu').hidden; $('#menu-others').textContent = S.othersMemo ? '다른 분 메모 숨기기' : '다른 분 메모 보기'; };
 $('#menu').addEventListener('click', (e) => {
   const b = e.target.closest('[data-menu]');
@@ -899,42 +1117,32 @@ $('#menu').addEventListener('click', (e) => {
   const m = b.dataset.menu;
   if (m === 'guide') openModal('guide-modal');
   if (m === 'floor') openFloors();
-  if (m === 'leave') leave();
   if (m === 'others') {
     S.othersMemo = !S.othersMemo;
     store.set('othersMemo', S.othersMemo);
-    for (const p of S.peers.values()) p.av.setMemos(S.othersMemo ? memosOf(p.pf) : []);
+    for (const p of S.peers.values()) p.av.setMemos(S.othersMemo ? p.pf.memos : [], p.pf.mm || 'auto', p.pf.mi | 0);
     toast(S.othersMemo ? '다른 분 메모를 다시 보여요' : '다른 분 메모를 숨겼어요');
   }
 });
 
-// ───────── 오늘 집중 시간 (앉아 있던 시간, 이 기기) ─────────
-const today = () => new Date().toLocaleDateString('sv');
-let focusLast = Date.now();
-function tickFocus() {
-  const now = Date.now();
-  const dt = Math.min(90, (now - focusLast) / 1000);
-  focusLast = now;
-  if (!S.entered) { $('#focus-chip').hidden = true; return; }
-  const key = 'focus.' + today();
-  let s = store.get(key, 0);
-  if (S.sitting) { s += dt; store.set(key, Math.round(s)); }
-  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
-  const el = $('#focus-chip');
-  el.hidden = false;
-  el.textContent = `오늘 ${h ? h + '시간 ' : ''}${m}분 집중`;
-}
-setInterval(tickFocus, 1000);
-
 // ───────── 연습용 가짜 동료 (?demo=12) ─────────
 function demo(n) {
-  const nows = ['캠핑장 메타버스 모닥불 고치는 중', '가계부 앱 차트 다듬기', '블로그 다크 모드', '디스코드 봇 배포', '템플스테이 연등 효과', '1인 SaaS 결제 붙이는 중', '포트폴리오 리뉴얼', '게임 잼 출품작', '', '영어 단어장 앱'];
+  const memoSets = [['캠핑장 모닥불 고치는 중', '다들 화이팅!', '집중 모드 🎧'], ['가계부 앱 차트 다듬기', '어서오세요'], ['디스코드 봇 배포', '배포 성공 🎉', '다들 뭐하세요?'], ['포트폴리오 리뉴얼', '오늘은 여기까지'], ['게임 잼 출품작', '버그 잡는 중…']];
   const links = [[{ t: '캠핑장 메타버스', u: 'https://campingjang.site', d: '모닥불 앞에 같이 앉아 있는 3D 캠핑장' }], [{ t: '큰법당 템플스테이', u: 'https://templestay.site', d: '산·강·바다가 보이는 3D 법당' }, { t: '깃허브', u: 'https://github.com' }], []];
+  const decks = [
+    { c: 'white', ch: 'cream', mon: 'studio', kb: 'hhkb', chair: 'mesh', it: ['macmini', 'espresso', 'monstera', 'lightbar', 'humidifier'] },
+    { c: 'walnut', ch: 'terra', mon: 'd', kb: 'mech', chair: 'gaming', it: ['figure', 'cans', 'gamepad', 'neon', 'retro'] },
+    { c: 'mint', ch: 'teal', mon: 'v', kb: 'split', chair: 'basic', it: ['plant', 'catdoll', 'postit', 'fan', 'blanket'] },
+    { c: 'black', ch: 'navy', mon: 'w', kb: 'mech', chair: 'basic', it: ['speaker', 'headset', 'mic', 'webcam', 'aquarium'] },
+    { c: 'oak', ch: 'charcoal', mon: 'm', kb: 'basic', chair: 'basic', it: ['books', 'mug', 'lamp', 'duck', 'cushion'] },
+    { c: 'pink', ch: 'wine', mon: 'l', kb: 'basic', chair: 'basic', it: ['cactus', 'frame', 'clock', 'drip', 'lego', 'globe'] },
+  ];
   S.seat = 7;
+  const outfits = OUTFITS.filter((o) => !o.hidden);
   for (let i = 0; i < n; i++) {
     const id = 'demo' + i;
-    const look = { type: CHAR_TYPES[i % CHAR_TYPES.length].id, gender: i % 3 ? 'm' : 'f', skin: SKIN_TONES[i % 5], outfit: OUTFITS[(i * 7) % OUTFITS.length].id, acc: ACCESSORIES[(i * 3) % ACCESSORIES.length].id, pet: PETS[(i * 5) % 10].id };
-    const pf = { n: randomName(), look, intro: '', now: nows[i % nows.length], memos: [...defaultProfile().memos].sort(() => Math.random() - 0.5), links: links[i % 3], auto: true };
+    const look = { body: BODIES[i % BODIES.length].id, type: CHAR_TYPES[i % CHAR_TYPES.length].id, gender: i % 3 ? 'm' : 'f', skin: SKIN_TONES[i % 5], outfit: outfits[(i * 7) % outfits.length].id, acc: ACCESSORIES[(i * 3) % ACCESSORIES.length].id, pet: PET_IDS[(i * 5) % PET_IDS.length] };
+    const pf = { n: randomName(), look, memos: memoSets[i % memoSets.length], links: links[i % 3], desk: decks[i % decks.length], mm: i % 4 === 1 ? 'one' : 'auto', mi: 0, lv: 1 + ((i * 3) % 9) };
     const seat = i >= 7 ? i + 1 : i;
     addOrUpdatePeer(id, pf, seat);
     const s = office.seats[seat];
@@ -957,6 +1165,7 @@ function frame() {
   if (office) {
     updatePeers(dt);
     tickScreens(dt);
+    office.tickDesks(now / 1000);
   }
   placeCamera(dt);
   renderer.render(scene, camera);
@@ -974,6 +1183,7 @@ function updateMe(dt) {
   let speed = 0;
   if (len > 0.15) {
     S.walkTo = null;
+    stopTour();
     if (S.sitting) standUp();
     const fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw);
     const rx = Math.cos(cam.yaw), rz = -Math.sin(cam.yaw);
@@ -1005,30 +1215,28 @@ function updateMe(dt) {
   if (sendT > 0.15) { sendT = 0; sendState(false); }
 }
 
-// ───────── 시작 ─────────
+// ───────── 시작: 로딩 화면 → 바로 출근 ─────────
 async function boot() {
+  const t0 = performance.now();
   // 캔버스 글씨(이름표·말풍선·모니터)가 기본 글꼴로 그려지지 않게 글꼴을 먼저 받는다
   await Promise.race([
     Promise.all([document.fonts.load(`600 38px ${FONT}`), document.fonts.load('700 40px "JetBrains Mono"'), document.fonts.load(`400 24px ${FONT}`)]),
     new Promise((r) => setTimeout(r, 2500)),
   ]).catch(() => {});
-  office = buildOffice();
-  scene.add(office.group);
-  applyTime();
+  const floorP = S.floor ? Promise.resolve(S.floor) : (Q.has('demo') ? Promise.resolve(1) : pickDefaultFloor());
+  S.floor = await floorP;
+  setOffice(S.floor);
   setInterval(applyTime, 10 * 60 * 1000);
-  refreshAllScreens();
-  office.paintFloor(S.floor || 1);
-  office.paintBoard(S.floor || 1, 0);
   frame();
+  if (RELAY_URL && !Q.has('relay') && !Q.has('demo')) fetch(`${RELAY_URL}/visit`, { method: 'POST' }).catch(() => {});
+  // 로딩 화면의 글을 읽을 수 있게 조금은 보여 줘요
+  const wait = Math.max(0, (Q.has('fast') ? 0 : 2200) - (performance.now() - t0));
+  await new Promise((r) => setTimeout(r, wait));
+  await enter(S.floor);
   $('#loading').classList.add('out');
   setTimeout(() => $('#loading').remove(), 600);
-  S.firstRun = firstVisit;
-  if (Q.has('demo')) { S.floor = S.floor || 1; enter(S.floor); return; }
-  if (RELAY_URL && !Q.has('relay')) fetch(`${RELAY_URL}/visit`, { method: 'POST' }).catch(() => {});
-  await showIntro();
-  if (Q.has('f') && !firstVisit) enter(S.floor);
 }
 boot();
 
 // 시험용
-if (Q.has('debug')) window.__S = { S, cam, net, scene, camera, openCard, openDesk, openFloors, peek, enter, moveToSeat, doAct, get office() { return office; }, get me() { return me; } };
+if (Q.has('debug')) window.__S = { S, cam, net, scene, camera, openCard, openDesk, openFloors, openCreator, peek, enter, moveToSeat, doAct, setMemoMode, refreshAllScreens, get office() { return office; }, get me() { return me; } };

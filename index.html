@@ -26,35 +26,15 @@
 <canvas id="scene"></canvas>
 <div id="fade"></div>
 
-<!-- 로딩 -->
+<!-- 로딩: 소개 글을 보여 주고 바로 출근 -->
 <section id="loading">
   <div class="ld">
     <p class="ld-logo">SOHO LAB</p>
-    <h1>소호랩</h1>
-    <p class="ld-sub">혼자지만 같이 일하는 사무실</p>
-    <div class="ld-bar"><i></i></div>
-  </div>
-</section>
-
-<!-- 첫 화면: 출근하기 -->
-<section id="intro" class="screen" hidden>
-  <div class="intro-card panel">
-    <p class="eyebrow">SOHO LAB · 1인 개발자 공유 오피스</p>
     <h1>퇴근 후,<br>같이 혼자 일해요</h1>
-    <p class="lead">층마다 책상 20개. 채팅은 없어요. 하고 싶은 말은 메모로 적어 두면 머리 위에 떠요. 다른 분 책상을 누르면 만들고 있는 걸 구경할 수 있어요.</p>
-    <div class="me-row">
-      <span class="me-dot"></span>
-      <span><b id="intro-name"></b><small id="intro-now" class="muted"></small></span>
-    </div>
-    <div class="intro-actions">
-      <button id="btn-enter" class="primary"><span class="lbl" id="enter-label">출근하기</span><small class="cap" id="enter-cap">빈 책상에 앉아요</small></button>
-      <div class="row2">
-        <button id="intro-char" class="ghost"><span class="lbl">캐릭터</span><small class="cap">모습 · 닉네임</small></button>
-        <button id="intro-desk" class="ghost"><span class="lbl">내 책상</span><small class="cap">하는 일 · 메모 · 결과물</small></button>
-        <button id="intro-floor" class="ghost"><span class="lbl">층 고르기</span><small class="cap">1층 ~ 10층</small></button>
-      </div>
-    </div>
-    <p class="fine">로그인 없이 이 기기에 저장돼요. 결과물 링크와 메모는 같은 층 사람들에게 보여요.</p>
+    <p class="ld-sub">층마다 책상 20개. 채팅은 없어요.<br>하고 싶은 말은 메모로 적어 두면 머리 위에 떠요.<br>다른 분 책상을 누르면 만들고 있는 걸 구경할 수 있어요.</p>
+    <p class="ld-rule">비속어 · 나쁜 말은 메모에 쓸 수 없어요</p>
+    <div class="ld-bar"><i></i></div>
+    <p class="ld-note">출근하는 중…</p>
   </div>
 </section>
 
@@ -68,36 +48,53 @@
         <button class="icon-btn" data-close="creator" aria-label="닫기">✕</button>
       </header>
       <label class="field" for="nick">닉네임
-        <span class="row"><input id="nick" maxlength="12" autocomplete="off"><button id="nick-dice" class="ghost small" type="button">다른 이름</button></span>
+        <span class="row"><input id="nick" maxlength="12" autocomplete="off" placeholder="예: 말랑한 감자"><button id="nick-dice" class="ghost small" type="button">다른 이름</button></span>
       </label>
-      <div class="group"><h3>머리</h3><div id="opt-gender" class="chips"></div></div>
-      <div class="group"><h3>캐릭터</h3><div id="opt-type" class="chips"></div></div>
+      <p id="nick-error" class="form-error" hidden></p>
+      <div class="group"><h3>체형 <small class="muted" id="body-name"></small></h3><div id="opt-body" class="bodies"></div></div>
+      <div class="group"><h3>성별</h3><div id="opt-gender" class="chips"></div></div>
       <div class="group"><h3>피부색</h3><div id="opt-skin" class="swatches"></div></div>
-      <div class="group"><h3>옷</h3><div id="opt-outfit" class="chips"></div></div>
+      <div class="group"><h3>머리 스타일</h3><div id="opt-type" class="chips"></div></div>
+      <div class="group"><h3>옷 <small class="muted">머리 스타일과 따로 골라 조합해요</small></h3><div id="opt-outfit" class="chips"></div></div>
       <div class="group"><h3>소품</h3><div id="opt-acc" class="chips"></div></div>
-      <div class="group"><h3>책상 친구 <small class="muted">어디든 따라다녀요</small></h3><div id="opt-pet" class="chips"></div></div>
+      <div class="group"><h3>책상 친구 <small class="muted">어디든 따라다녀요 · NEW 는 캠핑장 · 큰법당 인기 친구</small></h3><div id="opt-pet" class="chips"></div></div>
       <button id="creator-done" class="primary wide"><span class="lbl">이 모습으로 일하기</span></button>
     </div>
   </div>
 </section>
 
-<!-- 내 책상 꾸미기 (프로필) -->
+<!-- 내 책상: 메모 · 결과물 · 꾸미기(상점) -->
 <div id="desk-modal" class="modal" hidden>
-  <form id="desk-form" class="sheet wide-sheet">
-    <header class="panel-head"><h2>내 책상 꾸미기</h2><button type="button" class="icon-btn" data-close="desk-modal" aria-label="닫기">✕</button></header>
-    <p class="sub">책상이나 모니터를 누른 분께 보여요. 내 모니터 아래 줄에는 "지금 하는 일"이 떠요.</p>
-    <label class="field">한 줄 소개 <input id="pf-intro" maxlength="40" placeholder="예: 회사 다니며 밤에 메타버스 만드는 사람"></label>
-    <label class="field">지금 하는 일 <input id="pf-now" maxlength="40" placeholder="예: 캠핑장 메타버스 모닥불 고치는 중"></label>
-    <div class="group">
-      <h3>머리 위 메모 <small class="muted">10개까지 · 하나씩 돌아가며 떠요 · 30자</small></h3>
-      <div id="pf-memos" class="memo-grid"></div>
+  <form id="desk-form" class="sheet wide-sheet" novalidate>
+    <header class="panel-head"><h2>내 책상</h2><button type="button" class="icon-btn" data-close="desk-modal" aria-label="닫기">✕</button></header>
+    <div id="desk-tabs" class="tabs" role="tablist">
+      <button type="button" role="tab" data-tab="memo">머리 위 메모</button>
+      <button type="button" role="tab" data-tab="links">자랑하는 결과물</button>
+      <button type="button" role="tab" data-tab="deco">책상 꾸미기 · 상점</button>
     </div>
-    <div class="group">
-      <h3>내 결과물 <small class="muted">6개까지 · 누르면 구경하고 접속해요</small></h3>
+    <section data-pane="memo" class="group">
+      <p class="rule"><b>비속어 · 나쁜 말 금지</b> 메모는 같은 층 모두의 머리 위에 떠요. 욕설 · 혐오 · 성적인 말이 들어가면 저장되지 않아요.</p>
+      <h3>메모 5개 <small class="muted">30자 · 첫 번째 메모는 '지금 하는 일'처럼 모니터 아래 줄에도 떠요</small></h3>
+      <div id="pf-memos" class="memo-grid"></div>
+      <p class="muted small">말풍선은 화면 아래 메모 줄에서 <b>자동</b>(돌아가며) · <b>하나</b>(고른 메모만 계속) · <b>없음</b> 중에 골라요.</p>
+    </section>
+    <section data-pane="links" class="group">
+      <h3>자랑하는 결과물 <small class="muted">3개까지 · 책상을 누른 분이 구경하고 접속해요</small></h3>
       <div id="pf-links" class="link-rows"></div>
       <button id="pf-add" type="button" class="ghost small">+ 결과물 추가</button>
-    </div>
-    <button class="primary wide" type="submit"><span class="lbl">저장하기</span><small class="cap">이 기기에 저장되고 같은 층에 바로 보여요</small></button>
+    </section>
+    <section data-pane="deco" class="group deco">
+      <p id="deco-wallet" class="wallet"></p>
+      <p class="muted small">책상에 앉아 있는 1분마다 <b>1 XP · 1 P</b>가 쌓여요. 고르면 바로 내 책상에 놓여요.</p>
+      <div class="group"><h3>상판 색</h3><div id="deco-color" class="swatches"></div></div>
+      <div class="group"><h3>의자 색</h3><div id="deco-chaircolor" class="swatches"></div></div>
+      <div class="group"><h3>모니터</h3><div id="deco-mon" class="shop-grid"></div></div>
+      <div class="group"><h3>키보드</h3><div id="deco-kb" class="shop-grid"></div></div>
+      <div class="group"><h3>의자</h3><div id="deco-chair" class="shop-grid"></div></div>
+      <div class="group"><h3>책상 아이템 <small class="muted" id="deco-count"></small></h3><div id="deco-items"></div></div>
+    </section>
+    <p id="pf-error" class="form-error" hidden></p>
+    <button id="desk-save" class="primary wide" type="submit"><span class="lbl">저장하기</span><small class="cap">이 기기에 저장되고 같은 층에 바로 보여요</small></button>
   </form>
 </div>
 
@@ -137,11 +134,13 @@
   <div class="sheet">
     <header class="panel-head"><h2>소호랩 사용법</h2><button class="icon-btn" data-close="guide-modal" aria-label="닫기">✕</button></header>
     <ul class="guide">
-      <li><b>출근하면</b> 내 책상에 앉아 저절로 코딩해요. 실제 일은 다른 창에서 하시고, 이 창은 켜 두기만 하세요.</li>
-      <li><b>채팅은 없어요.</b> 하고 싶은 말은 <b>내 책상 꾸미기</b>에서 메모 10개로 적어 두면 머리 위에 하나씩 돌아가며 떠요. 아래 메모 줄을 누르면 그 메모를 지금 바로 띄워요.</li>
-      <li><b>책상 · 모니터 · 캐릭터를 누르면</b> 그 분이 지금 하는 일과 만든 결과물을 보고, 미리보기하거나 접속할 수 있어요.</li>
+      <li><b>들어오면</b> 바로 출근해서 내 책상에 앉아 저절로 코딩해요. 실제 일은 다른 창에서 하시고, 이 창은 켜 두기만 하세요.</li>
+      <li><b>채팅은 없어요.</b> 하고 싶은 말은 <b>내 책상</b>에서 메모 5개로 적어 두면 머리 위에 떠요. 아래 메모 줄에서 <b>자동 · 하나 · 없음</b>을 골라요.</li>
+      <li class="warn"><b>비속어 · 나쁜 말은 메모와 닉네임에 쓸 수 없어요.</b> 같은 층 모두에게 보여요.</li>
+      <li><b>책상 · 모니터 · 캐릭터를 누르면</b> 그 분이 지금 하는 일과 자랑하는 결과물 3개를 보고, 미리보기하거나 접속할 수 있어요.</li>
+      <li><b>집중하면 레벨 업</b>: 앉아 있는 1분마다 1 XP · 1 P. 포인트로 맥미니, 맥 모니터, 에스프레소 머신 같은 책상 아이템을 사요.</li>
       <li><b>걷기</b>: W A S D · 방향키 (휴대폰은 왼쪽 아래 조이스틱). 끌어서 화면 돌리기, 휠로 멀리·가까이.</li>
-      <li><b>빈 책상</b>을 누르면 그 자리로 옮길 수 있어요. 커피 머신을 누르면 커피를 마셔요. 엘리베이터를 누르면 다른 층으로 가요.</li>
+      <li><b>층마다 사무실이 달라요.</b> 엘리베이터를 누르면 다른 층으로 가요. 빈 책상을 누르면 그 자리로 옮겨요.</li>
     </ul>
   </div>
 </div>
@@ -150,14 +149,15 @@
 <section id="hud" hidden>
   <div class="hud-top">
     <div class="hud-left">
-      <button id="floor-chip" class="glass chip-btn"><span class="lbl"><b id="hud-floor">1F</b><span class="people"><i class="dot"></i><span id="hud-people">1</span>/20</span></span><small class="cap">눌러서 다른 층</small></button>
+      <button id="floor-chip" class="glass chip-btn"><span class="lbl"><b id="hud-floor">1F</b><span class="people"><i class="dot"></i><span id="hud-people">1</span>/20</span></span><small class="cap" id="hud-theme">눌러서 다른 층</small></button>
+      <button id="xp-chip" class="glass mini xp" title="집중 경험치"></button>
       <span id="focus-chip" class="glass mini" title="오늘 책상에 앉아 있던 시간"></span>
       <span id="net-chip" class="glass mini warn" hidden></span>
     </div>
     <div class="hud-right">
-      <button id="btn-desk" class="glass icon-btn"><span class="lbl">✎</span><small class="cap">내 책상</small></button>
+      <button id="btn-desk" class="glass icon-btn"><span class="lbl">✎</span><small class="cap">메모</small></button>
+      <button id="btn-shop" class="glass icon-btn"><span class="lbl">🛒</span><small class="cap">책상 꾸미기</small></button>
       <button id="btn-char" class="glass icon-btn"><span class="lbl">☺</span><small class="cap">캐릭터</small></button>
-      <button id="btn-copy" class="glass icon-btn"><span class="lbl">🔗</span><small class="cap">링크</small></button>
       <button id="btn-menu" class="glass icon-btn"><span class="lbl">☰</span><small class="cap">메뉴</small></button>
     </div>
   </div>
@@ -165,7 +165,6 @@
     <button data-menu="guide">사용법</button>
     <button data-menu="floor">다른 층으로</button>
     <button data-menu="others" id="menu-others">다른 분 메모 숨기기</button>
-    <button data-menu="leave">퇴근하기 (첫 화면)</button>
   </div>
   <div id="toasts"></div>
   <div class="bottom">

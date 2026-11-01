@@ -1,8 +1,8 @@
 // 캐릭터: 블록 사람 + 이름표 + 머리 위 메모 말풍선 + 동작(코딩·커피·기지개 …).
 // 관절(hips, head, 팔다리) 회전값으로 자세를 만든다. 캐릭터는 +z 방향을 바라본다.
 import * as THREE from 'three';
-import { OUTFITS } from './data.js';
-import { buildBlock, buildPet, bakeBlock, box } from './blocky.js';
+import { OUTFITS, bodyOf } from './data.js';
+import { buildBlock, buildPet, bakeBlock, applyBody, box } from './blocky.js';
 
 const matCache = new Map();
 export function mat(color, opts = {}) {
@@ -134,6 +134,9 @@ export class Avatar {
     this.memoT = Math.random() * 6; // 사람마다 말풍선 뜨는 때를 조금씩 엇갈리게
     this.memoIdx = (Math.random() * 10) | 0;
     this.pinned = 0;
+    this.mode = 'auto'; // auto 돌아가며 · one 하나만 계속 · off 안 띄움
+    this.oneIdx = 0;
+    this.tagY = 2.0;
     this.build(look);
     this.setName(name);
     this.makeBubble();
@@ -147,7 +150,7 @@ export class Avatar {
     if (this.tag) { this.group.remove(this.tag); this.tag.material.map.dispose(); this.tag.material.dispose(); }
     this.name = name;
     this.tag = nameTag(name, this.mine);
-    this.tag.position.y = 2.0;
+    this.tag.position.y = this.tagY;
     this.group.add(this.tag);
   }
 
@@ -159,16 +162,20 @@ export class Avatar {
     tex.colorSpace = THREE.SRGBColorSpace;
     this.bubble = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false, transparent: true, opacity: 0 }));
     this.bubble.scale.set(2.0, 0.625, 1);
-    this.bubble.position.y = 2.5;
+    this.bubble.position.y = this.tagY + 0.5;
     this.bubble.renderOrder = 11;
     this.bubble.visible = false;
     this.group.add(this.bubble);
     this.bubbleText = '';
   }
 
-  setMemos(list) {
-    this.memos = (list || []).filter((s) => s && s.trim());
-    if (!this.memos.length) this.hideBubble();
+  // list: 메모 5개, mode: auto | one | off, idx: one 일 때 띄울 메모 번호
+  setMemos(list, mode = 'auto', idx = 0) {
+    this.allMemos = (list || []).map((s) => String(s || ''));
+    this.memos = this.allMemos.filter((s) => s.trim());
+    this.mode = mode;
+    this.oneIdx = idx;
+    if (!this.memos.length || mode === 'off') this.hideBubble();
   }
 
   showText(text) {
@@ -195,7 +202,10 @@ export class Avatar {
     if (this.pinned > 0) {
       this.pinned -= dt;
       if (this.pinned <= 0) { this.hideBubble(); this.memoT = 0; }
-    } else if (this.memoOn && this.memos.length) {
+    } else if (this.memoOn && this.mode === 'one' && this.allMemos?.[this.oneIdx]?.trim()) {
+      // 고른 메모 하나가 계속 떠 있어요
+      this.showText(this.allMemos[this.oneIdx]);
+    } else if (this.memoOn && this.mode === 'auto' && this.memos.length) {
       this.memoT += dt;
       if (!this.bubbleShown && this.memoT > 5) {
         this.memoIdx = (this.memoIdx + 1) % this.memos.length;
@@ -233,6 +243,12 @@ export class Avatar {
     }
 
     buildBlock(this, body, look, outfit, look.skin);
+    // 체형: 키·등신·체격. 이름표와 말풍선도 키에 맞춰요
+    const B = bodyOf(look);
+    applyBody(this, B);
+    this.tagY = B.k * (0.46 * B.leg + 0.56 * B.th + 0.58 * B.head) + 0.45;
+    if (this.tag) this.tag.position.y = this.tagY;
+    if (this.bubble) this.bubble.position.y = this.tagY + 0.5;
     bakeBlock(this);
 
     // 머그컵 (오른손)
@@ -285,9 +301,9 @@ export class Avatar {
 
     const bob = !this.seated && this.speed > 0.05 ? Math.abs(Math.sin(this.walkPhase)) * 0.04 : 0;
     const breathe = Math.sin(performance.now() / 900) * 0.006;
-    this.body.position.y = p.y + bob;
+    this.body.position.y = p.y * (this.sitK || 1) + bob; // 다리가 짧은 체형은 앉을 때 덜 내려가요
     this.hips.rotation.x = p.hip;
-    this.hips.scale.y = 1 + breathe;
+    this.hips.scale.y = (this.torsoY || 1) * (1 + breathe);
     this.head.rotation.x = p.head;
     this.armL.rotation.set(p.aL[0], 0, p.aL[1]);
     this.armR.rotation.set(p.aR[0], 0, p.aR[1]);
@@ -307,7 +323,7 @@ export class Avatar {
     if (pet.parent !== parent) parent.add(pet);
     pet.visible = this.group.visible;
     const g = this.group, ry = g.rotation.y;
-    const lx = this.seated ? 0.75 : 0.72, lz = this.seated ? -0.2 : -0.45;
+    const lx = (this.seated ? 0.85 : 0.72) * (pet.userData.side || 1), lz = this.seated ? -0.2 : -0.45 * (pet.userData.back || 1);
     const tx = g.position.x + lx * Math.cos(ry) + lz * Math.sin(ry);
     const tz = g.position.z - lx * Math.sin(ry) + lz * Math.cos(ry);
     const bx = pet.position.x, bz = pet.position.z;

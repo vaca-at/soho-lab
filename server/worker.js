@@ -1,8 +1,9 @@
 // 소호랩 방 중계 서버.
 // 층(floor-1 … floor-10) 하나가 Durable Object 하나. 층마다 20명, 책상 20개.
 // 서버가 책상 번호를 나눠 주고(겹치지 않게), 위치·프로필·동작을 같은 층 사람들에게 그대로 전한다.
-// 채팅은 없다: 글은 프로필(메모 10개, 지금 하는 일, 결과물 링크)로만 오간다.
+// 채팅은 없다: 글은 프로필(메모 5개, 결과물 링크 3개)로만 오간다. 비속어가 든 글은 지운다.
 import { DurableObject } from 'cloudflare:workers';
+import { findBad } from '../js/badwords.js';
 
 const CAP = 20;
 const FLOORS = 10;
@@ -54,25 +55,31 @@ function safeUrl(u) {
     return url.protocol === 'https:' || url.protocol === 'http:' ? url.href.slice(0, 200) : '';
   } catch { return ''; }
 }
+const clean = (s, n) => { const t = str(s, n); return findBad(t) ? '' : t; };
 function cleanProfile(d) {
   if (!d || typeof d !== 'object') return null;
   const lk = d.look || {};
   const look = {
+    body: ID.test(lk.body) ? lk.body : 'base',
     type: ID.test(lk.type) ? lk.type : 'hoodie',
     gender: lk.gender === 'f' ? 'f' : 'm',
     skin: COLOR.test(lk.skin) ? lk.skin : '#f4c9a6',
-    outfit: ID.test(lk.outfit) ? lk.outfit : 'own',
+    outfit: ID.test(lk.outfit) ? lk.outfit : 'wear_hoodie',
     acc: ID.test(lk.acc) ? lk.acc : 'none',
     pet: ID.test(lk.pet) ? lk.pet : 'none',
   };
-  const name = str(d.n, 12).trim() || '이름 없는 개발자';
+  const name = clean(d.n, 12).trim() || '이름 없는 개발자';
+  const dk = d.desk && typeof d.desk === 'object' ? d.desk : {};
+  const id = (v, def) => (ID.test(v) ? v : def);
   return {
     n: name,
     look,
-    intro: str(d.intro, 40),
-    now: str(d.now, 40),
-    memos: (Array.isArray(d.memos) ? d.memos : []).slice(0, 10).map((m) => str(m, 30)),
-    links: (Array.isArray(d.links) ? d.links : []).slice(0, 6).map((l) => ({ t: str(l?.t, 24), u: safeUrl(l?.u), d: str(l?.d, 60) })).filter((l) => l.u),
+    memos: (Array.isArray(d.memos) ? d.memos : []).slice(0, 5).map((m) => clean(m, 30)),
+    links: (Array.isArray(d.links) ? d.links : []).slice(0, 3).map((l) => ({ t: clean(l?.t, 24), u: safeUrl(l?.u), d: clean(l?.d, 60) })).filter((l) => l.u),
+    desk: { c: id(dk.c, 'oak'), ch: id(dk.ch, 'charcoal'), mon: id(dk.mon, 'm'), kb: id(dk.kb, 'basic'), chair: id(dk.chair, 'basic'), it: (Array.isArray(dk.it) ? dk.it : []).slice(0, 16).filter((x) => ID.test(x)) },
+    mm: ['auto', 'one', 'off'].includes(d.mm) ? d.mm : 'auto',
+    mi: Math.max(0, Math.min(4, d.mi | 0)),
+    lv: Math.max(1, Math.min(99, d.lv | 0)),
   };
 }
 function cleanState(d) {
@@ -165,7 +172,7 @@ export class Room extends DurableObject {
       this.broadcast({ t: 'seat', id: a.id, d: want });
     } else if (m.t === 'act' && m.d && a.pf) {
       ws.serializeAttachment(a);
-      const d = m.d.m !== undefined ? { m: Math.max(0, Math.min(9, m.d.m | 0)) } : { a: ID.test(m.d.a) ? m.d.a : '' };
+      const d = m.d.m !== undefined ? { m: Math.max(0, Math.min(4, m.d.m | 0)) } : { a: ID.test(m.d.a) ? m.d.a : '' };
       this.broadcast({ t: 'act', id: a.id, d }, ws);
     } else ws.serializeAttachment(a);
   }

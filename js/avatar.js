@@ -149,7 +149,7 @@ export class Avatar {
     this.pinned = 0;
     this.mode = 'auto'; // auto 돌아가며 · one 하나만 계속 · off 안 띄움
     this.oneIdx = 0;
-    this.tagY = 2.0;
+    this.tagY = 1.82;
     this.build(look);
     this.setName(name);
     this.makeBubble();
@@ -175,7 +175,7 @@ export class Avatar {
     tex.colorSpace = THREE.SRGBColorSpace;
     this.bubble = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false, transparent: true, opacity: 0 }));
     this.bubble.scale.set(2.0, 0.625, 1);
-    this.bubble.position.y = this.tagY + 0.4;
+    this.bubble.position.y = this.tagY + 0.38;
     this.bubble.renderOrder = 11;
     this.bubble.visible = false;
     this.group.add(this.bubble);
@@ -259,9 +259,9 @@ export class Avatar {
     // 체형: 키·등신·체격. 이름표와 말풍선도 키에 맞춰요
     const B = bodyOf(look);
     applyBody(this, B);
-    this.tagY = B.k * (0.46 * B.leg + 0.56 * B.th + 0.58 * B.head) + 0.3;
+    this.tagY = B.k * (0.46 * B.leg + 0.56 * B.th + 0.58 * B.head) + 0.22; // 머리카락 바로 위
     if (this.tag) this.tag.position.y = this.tagY;
-    if (this.bubble) this.bubble.position.y = this.tagY + 0.4;
+    if (this.bubble) this.bubble.position.y = this.tagY + 0.38;
     bakeBlock(this);
 
     // 머그컵 (오른손)
@@ -336,7 +336,7 @@ export class Avatar {
     for (const [id, can] of Object.entries(this.cans)) can.visible = this.action === id;
     const down = this.seated ? 0.38 * (this.sitK || 1) : 0;
     this.tag.position.y = this.tagY - down;
-    this.bubble.position.y = this.tagY + 0.4 - down;
+    this.bubble.position.y = this.tagY + 0.38 - down;
     this.updatePet(dt);
     this.tickMemo(dt);
   }

@@ -14,11 +14,17 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=20261101d">
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+  "./js/data.js": "./js/data.js?v=20261101d",
+  "./js/blocky.js": "./js/blocky.js?v=20261101d",
+  "./js/avatar.js": "./js/avatar.js?v=20261101d",
+  "./js/world.js": "./js/world.js?v=20261101d",
+  "./js/net.js": "./js/net.js?v=20261101d",
+  "./js/badwords.js": "./js/badwords.js?v=20261101d"
 } }
 </script>
 </head>
@@ -34,7 +40,7 @@
     <p class="ld-sub">층마다 책상 20개. 채팅은 없어요.<br>하고 싶은 말은 메모로 적어 두면 머리 위에 떠요.<br>다른 분 책상을 누르면 만들고 있는 걸 구경할 수 있어요.</p>
     <p class="ld-rule">비속어 · 나쁜 말은 메모에 쓸 수 없어요</p>
     <div class="ld-bar"><i></i></div>
-    <p class="ld-note">출근하는 중…</p>
+    <p class="ld-note">사무실을 둘러보는 중… 곧 자리에 앉아요</p>
   </div>
 </section>
 
@@ -70,7 +76,7 @@
     <div id="desk-tabs" class="tabs" role="tablist">
       <button type="button" role="tab" data-tab="memo">머리 위 메모</button>
       <button type="button" role="tab" data-tab="links">자랑하는 결과물</button>
-      <button type="button" role="tab" data-tab="deco">책상 꾸미기 · 상점</button>
+      <button type="button" role="tab" data-tab="deco">책상 꾸미기</button>
     </div>
     <section data-pane="memo" class="group">
       <p class="rule"><b>비속어 · 나쁜 말 금지</b> 메모는 같은 층 모두의 머리 위에 떠요. 욕설 · 혐오 · 성적인 말이 들어가면 저장되지 않아요.</p>
@@ -85,7 +91,7 @@
     </section>
     <section data-pane="deco" class="group deco">
       <p id="deco-wallet" class="wallet"></p>
-      <p class="muted small">책상에 앉아 있는 1분마다 <b>1 XP · 1 P</b>가 쌓여요. 고르면 바로 내 책상에 놓여요.</p>
+      <p class="muted small">가지고 있는 것만 보여요. 누르면 놓고, 다시 누르면 빼요. 새 아이템은 <button type="button" id="deco-to-shop" class="link-btn">상점</button>에서 사요.</p>
       <div class="group"><h3>상판 색</h3><div id="deco-color" class="swatches"></div></div>
       <div class="group"><h3>의자 색</h3><div id="deco-chaircolor" class="swatches"></div></div>
       <div class="group"><h3>모니터</h3><div id="deco-mon" class="shop-grid"></div></div>
@@ -119,6 +125,48 @@
   </div>
 </div>
 
+<!-- 자리 이동: 독서실 자리표 -->
+<div id="seat-modal" class="modal" hidden>
+  <div class="sheet">
+    <header class="panel-head"><h2>자리 이동</h2><button class="icon-btn" data-close="seat-modal" aria-label="닫기">✕</button></header>
+    <p class="sub">빈 자리를 누르면 그 책상으로 옮겨요. 사람이 있는 자리를 누르면 그분 책상을 구경해요.</p>
+    <div id="seat-grid" class="seat-grid"></div>
+    <div class="seat-door"><span>▼ 입구 · 엘리베이터</span></div>
+    <div class="seat-legend"><span><i class="lg empty"></i>빈 자리</span><span><i class="lg taken"></i>코딩 중</span><span><i class="lg away"></i>잠깐 비움</span><span><i class="lg mine"></i>내 자리</span><span id="seat-note" class="muted"></span></div>
+  </div>
+</div>
+
+<!-- 웹들 둘러보기 -->
+<div id="browse-modal" class="modal" hidden>
+  <div class="sheet wide-sheet">
+    <header class="panel-head"><h2>웹 둘러보기</h2><button class="icon-btn" data-close="browse-modal" aria-label="닫기">✕</button></header>
+    <p class="sub">지금 이 층에서 일하는 분들이 자랑하는 결과물이에요. 미리보기로 구경하거나 바로 접속해 보세요.</p>
+    <div id="browse-list" class="browse-list"></div>
+  </div>
+</div>
+
+<!-- 상점 -->
+<div id="shop-modal" class="modal" hidden>
+  <div class="sheet wide-sheet">
+    <header class="panel-head"><h2>상점</h2><button class="icon-btn" data-close="shop-modal" aria-label="닫기">✕</button></header>
+    <p id="shop-wallet" class="wallet"></p>
+    <p class="muted small">책상에 앉아 집중한 1분마다 <b>1 XP · 1 P</b>가 쌓여요. 산 물건은 바로 내 책상에 놓이고, 책상 꾸미기에서 바꿀 수 있어요.</p>
+    <div class="group"><h3>모니터</h3><div id="shop-mon" class="shop-grid"></div></div>
+    <div class="group"><h3>키보드</h3><div id="shop-kb" class="shop-grid"></div></div>
+    <div class="group"><h3>의자</h3><div id="shop-chair" class="shop-grid"></div></div>
+    <div class="group"><h3>책상 아이템</h3><div id="shop-items"></div></div>
+  </div>
+</div>
+
+<!-- 냉장고 -->
+<div id="fridge-modal" class="modal" hidden>
+  <div class="sheet">
+    <header class="panel-head"><h2>음료 냉장고</h2><button class="icon-btn" data-close="fridge-modal" aria-label="닫기">✕</button></header>
+    <p class="sub">무알콜 맥주 · 콜라 · 사이다 <b class="free">무제한 무료</b>예요. 고르면 냉장고까지 걸어가서 꺼내 마셔요.</p>
+    <div id="fridge-list" class="fridge-list"></div>
+  </div>
+</div>
+
 <!-- 층 고르기 -->
 <div id="floor-modal" class="modal" hidden>
   <div class="sheet">
@@ -140,6 +188,7 @@
       <li><b>책상 · 모니터 · 캐릭터를 누르면</b> 그 분이 지금 하는 일과 자랑하는 결과물 3개를 보고, 미리보기하거나 접속할 수 있어요.</li>
       <li><b>집중하면 레벨 업</b>: 앉아 있는 1분마다 1 XP · 1 P. 포인트로 맥미니, 맥 모니터, 에스프레소 머신 같은 책상 아이템을 사요.</li>
       <li><b>걷기</b>: W A S D · 방향키 (휴대폰은 왼쪽 아래 조이스틱). 끌어서 화면 돌리기, 휠로 멀리·가까이.</li>
+      <li><b>걸어갔다 오는 동작</b>: 커피 타 오기 · 프린트하기 · 물 마시기 · 화이트보드 · 바람 쐬기. 커피 바 옆 냉장고의 무알콜 맥주 · 콜라 · 사이다는 무제한 무료예요.</li>
       <li><b>층마다 사무실이 달라요.</b> 엘리베이터를 누르면 다른 층으로 가요. 빈 책상을 누르면 그 자리로 옮겨요.</li>
     </ul>
   </div>
@@ -155,9 +204,9 @@
       <span id="net-chip" class="glass mini warn" hidden></span>
     </div>
     <div class="hud-right">
-      <button id="btn-desk" class="glass icon-btn"><span class="lbl">✎</span><small class="cap">메모</small></button>
-      <button id="btn-shop" class="glass icon-btn"><span class="lbl">🛒</span><small class="cap">책상 꾸미기</small></button>
       <button id="btn-char" class="glass icon-btn"><span class="lbl">☺</span><small class="cap">캐릭터</small></button>
+      <button id="btn-shop" class="glass icon-btn"><span class="lbl">🛒</span><small class="cap">책상 꾸미기</small></button>
+      <button id="btn-desk" class="glass icon-btn"><span class="lbl">✎</span><small class="cap">메모</small></button>
       <button id="btn-menu" class="glass icon-btn"><span class="lbl">☰</span><small class="cap">메뉴</small></button>
     </div>
   </div>
@@ -171,9 +220,15 @@
     <div id="memo-bar" class="glass memo-bar"></div>
     <nav id="actions" class="glass"></nav>
   </div>
+  <nav id="left-acts" class="side-acts left glass" aria-label="걸어갔다 오기"></nav>
+  <nav id="right-acts" class="side-acts right glass" aria-label="웹">
+    <button id="btn-upload" class="side-btn"><span>내 웹 올리기</span><small class="cap">결과물 3개 자랑</small></button>
+    <button id="btn-browse" class="side-btn"><span>웹 둘러보기</span><small class="cap">이 층 사람들 결과물</small></button>
+    <button id="btn-store" class="side-btn"><span>상점</span><small class="cap">포인트로 책상 아이템</small></button>
+  </nav>
   <div id="joystick"><div class="knob"></div></div>
 </section>
 
-<script type="module" src="js/main.js"></script>
+<script type="module" src="js/main.js?v=20261101d"></script>
 </body>
 </html>

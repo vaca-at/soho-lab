@@ -959,13 +959,52 @@ export function buildOffice(themeId) {
   box(bar, '#1e2128', 0.3, 0.2, 0.05, 0.05, 1.45, -0.6);
   box(bar, '#e8e6e0', 0.5, 0.36, 0.4, 0.05, 1.24, 0.5);
   for (let i = 0; i < 4; i++) box(bar, ['#f4f1ec', '#2f5d8a', '#e0af68', '#9ece6a'][i], 0.1, 0.12, 0.1, -0.2, 1.12, 1.0 + i * 0.16);
-  box(bar, '#dfe3e8', 0.8, 1.9, 0.9, 0, 0.95, 2.4);
+  const fridge = new THREE.Group(); fridge.position.set(0, 0, 2.5); bar.add(fridge);
+  box(fridge, '#e8ebee', 0.85, 2.0, 1.0, 0.04, 1.0, 0);
+  box(fridge, '#1a1c22', 0.02, 1.7, 0.84, -0.4, 1.05, 0);
+  box(fridge, '#f6fbff', 0.01, 1.62, 0.78, -0.405, 1.05, 0, glow('#e8f6ff', 0.9));
+  const fridgeHit = box(fridge, '#cfe8f6', 0.03, 1.72, 0.86, -0.43, 1.05, 0, { transparent: true, opacity: 0.25 });
+  const drinkC = [['#d9a43a', '#f2d27a'], ['#c8302a', '#f4f4f2'], ['#3fa85a', '#e8f6ec']];
+  for (let row = 0; row < 4; row++) {
+    box(fridge, '#c9ccd2', 0.02, 0.02, 0.8, -0.38, 0.38 + row * 0.42, 0);
+    const [c, band] = drinkC[row % 3];
+    for (let k = 0; k < 6; k++) { box(fridge, c, 0.08, 0.16, 0.08, -0.34, 0.48 + row * 0.42, -0.32 + k * 0.13); box(fridge, band, 0.081, 0.04, 0.081, -0.34, 0.5 + row * 0.42, -0.32 + k * 0.13); }
+  }
+  box(fridge, '#9aa0a8', 0.04, 0.6, 0.04, -0.45, 1.1, 0.36);
+  const fsign = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.5), new THREE.MeshBasicMaterial({ map: canvasTex(512, 200, (g, w, h) => {
+    g.fillStyle = '#12151c'; g.fillRect(0, 0, w, h); g.strokeStyle = '#5fd3a8'; g.lineWidth = 6; g.strokeRect(6, 6, w - 12, h - 12);
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#5fd3a8'; g.font = `700 54px ${FONT}`; g.fillText('무제한 무료', w / 2, 62);
+    g.fillStyle = '#f1eee8'; g.font = `500 34px ${FONT}`; g.fillText('무알콜 맥주 · 콜라 · 사이다', w / 2, 140);
+  }), toneMapped: false }));
+  fsign.rotation.y = -Math.PI / 2; fsign.position.set(-0.47, 2.35, 0); fridge.add(fsign);
+  fridgeHit.userData.kind = 'fridge';
   bar.position.set(ROOM.maxX - 0.5, 0, BZ);
   world.add(bar);
   machine.userData.kind = 'coffee';
   clickables.push(machine);
   colliders.push({ minX: ROOM.maxX - 1.1, maxX: ROOM.maxX, minZ: BZ - 1.9, maxZ: BZ + 2.9 });
   const coffeeSpot = { x: ROOM.maxX - 1.9, z: BZ - 0.9 };
+  clickables.push(fridgeHit);
+  // 프린터 · 정수기 (남쪽 벽, 엘리베이터 양옆)
+  const PX = -6.5, WX = 6.5, SZ = ROOM.maxZ - 0.5;
+  const printer = new THREE.Group(); printer.position.set(PX, 0, SZ); world.add(printer);
+  box(printer, '#3a3d45', 0.9, 0.7, 0.6, 0, 0.35, 0); box(printer, '#e8e8e6', 1.0, 0.45, 0.7, 0, 0.92, 0); box(printer, '#2a2c33', 0.7, 0.05, 0.4, 0, 1.17, 0);
+  box(printer, '#f6f6f2', 0.42, 0.02, 0.3, 0, 0.82, -0.36); box(printer, '#5fd3a8', 0.06, 0.03, 0.03, 0.35, 1.06, -0.36, glow('#5fd3a8', 1.5));
+  const cooler = new THREE.Group(); cooler.position.set(WX, 0, SZ); world.add(cooler);
+  box(cooler, '#e8e8e6', 0.5, 1.1, 0.5, 0, 0.55, 0); box(cooler, '#7fc8e8', 0.36, 0.5, 0.36, 0, 1.36, 0, { transparent: true, opacity: 0.6 }); box(cooler, '#3a8ac8', 0.1, 0.06, 0.04, 0, 0.9, -0.27);
+  box(cooler, '#f4f1ec', 0.06, 0.08, 0.06, 0.14, 0.82, -0.28);
+  colliders.push({ minX: PX - 0.55, maxX: PX + 0.55, minZ: SZ - 0.4, maxZ: ROOM.maxZ }, { minX: WX - 0.3, maxX: WX + 0.3, minZ: SZ - 0.3, maxZ: ROOM.maxZ });
+  for (const m of [...printer.children]) { m.userData.kind = 'printer'; clickables.push(m); }
+  for (const m of [...cooler.children]) { m.userData.kind = 'water'; clickables.push(m); }
+  // 걸어갔다 오는 동작의 자리 (ry: 그곳에서 바라보는 쪽)
+  const spots = {
+    coffee: { ...coffeeSpot, ry: Math.PI / 2 },
+    fridge: { x: ROOM.maxX - 1.9, z: BZ + 2.5, ry: Math.PI / 2 },
+    printer: { x: PX, z: SZ - 1.1, ry: 0 },
+    water: { x: WX, z: SZ - 0.95, ry: 0 },
+    board: { x: ROOM.minX + 1.3, z: ROOM.maxZ - 4, ry: -Math.PI / 2 },
+    window: { x: -7.2, z: ROOM.minZ + 0.9, ry: Math.PI },
+  };
   // 간판 (동쪽 벽)
   if (T.ceil !== 'none') {
     const neon = new THREE.Mesh(new THREE.PlaneGeometry(5.2, 1.3), new THREE.MeshBasicMaterial({ map: signTex('SOHO LAB', `${T.name}`, T.sign), transparent: true, toneMapped: false }));
@@ -1125,7 +1164,7 @@ export function buildOffice(themeId) {
   const tickDesks = (t) => { for (const s of seats) for (const f of s.anims) f(t); };
   const dispose = () => world.traverse((o) => { if (o.isMesh) { if (o.geometry !== BOXG) o.geometry.dispose(); if (o.material.map && o.material.map !== _neon) o.material.map.dispose(); } });
   const tour = [[0, 2.2], [ROOM.minX + 1.2, 2.2], [ROOM.minX + 1.2, ROOM.minZ + 1.3], [ROOM.maxX - 1.4, ROOM.minZ + 1.3], [ROOM.maxX - 1.4, -3.4], [15, -3.4], [15, 2.2]];
-  return { theme: T, group: world, seats, colliders, coffeeSpot, tour, allClickables, paintSky, paintFloor, paintBoard, tickDesks, dispose };
+  return { theme: T, group: world, seats, colliders, coffeeSpot, spots, tour, allClickables, paintSky, paintFloor, paintBoard, tickDesks, dispose };
 }
 
 // 원(캐릭터)과 상자(책상 등)가 겹치면 밀어낸다

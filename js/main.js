@@ -133,9 +133,11 @@ const cam = { yaw: Math.PI, pitch: 0.42, dist: 5.2, target: new THREE.Vector3(0,
 function placeCamera(dt) {
   if (!S.entered || !me) {
     // 로딩 중: 사무실 남쪽 벽 앞에서 천천히 좌우로 둘러본다
-    const a = Math.sin(performance.now() / 1000 * 0.06 + 0.4);
-    camera.position.set(a * 12, 3.1, ROOM.maxZ - 1);
-    camera.lookAt(-a * 3, 0.9, -5);
+    // 로딩 중: 사무실 남쪽에서 천천히 좌우로 훑으며 둘러봐요
+    const t = performance.now() / 1000;
+    const a = Math.sin(t * 0.22 - 1.2);
+    camera.position.set(a * 15, 2.2 + Math.sin(t * 0.3) * 0.15, ROOM.maxZ - 1.2);
+    camera.lookAt(-a * 6, 1.2, -6);
     return;
   }
   const p = me.group.position;
@@ -206,7 +208,10 @@ canvas.addEventListener('pointermove', (e) => {
 const endPtr = (e) => {
   touches.delete(e.pointerId);
   if (e.pointerId !== ptr.id) return;
-  if (ptr.down && ptr.moved <= 6 && e.type === 'pointerup') pick(e.clientX, e.clientY);
+  if (ptr.down && ptr.moved <= 6 && e.type === 'pointerup') {
+    if (!$('#desk-modal').hidden) closeModal('desk-modal'); // 꾸미기 창 바깥을 누르면 닫기
+    else pick(e.clientX, e.clientY);
+  }
   ptr.down = false;
 };
 canvas.addEventListener('pointerup', endPtr);
@@ -255,6 +260,9 @@ function pick(x, y) {
   if (u.seat !== undefined) { openCard(u.seat); return; }
   if (u.kind === 'elevator') openFloors();
   else if (u.kind === 'coffee') goCoffee();
+  else if (u.kind === 'fridge') openFridge();
+  else if (u.kind === 'printer') doTrip(ACTIONS.find((a) => a.id === 't_print'));
+  else if (u.kind === 'water') doTrip(ACTIONS.find((a) => a.id === 't_water'));
   else if (u.kind === 'board') openModal('guide-modal');
 }
 
@@ -306,17 +314,83 @@ function goSit() {
   S.walkTo = { x: p.x, z: p.z, then: sitDown, t: 0, best: Infinity, stuck: 0 };
 }
 
-function goCoffee() {
+function goCoffee() { doTrip(ACTIONS.find((a) => a.id === 't_coffee')); }
+
+// 걸어갔다 오는 동작: 그 자리까지 걸어가서 자세를 하고, 끝나면 내 자리로 돌아와 앉아요
+let tripToken = 0;
+function doTrip(def) {
+  const sp = office?.spots?.[def?.trip];
+  if (!sp || !me) return;
   stopTour();
   if (S.sitting) standUp();
-  const c = office.coffeeSpot;
-  S.walkTo = { x: c.x, z: c.z, t: 0, best: Infinity, stuck: 0, then: () => { me.group.rotation.y = Math.PI / 2; doAct('coffee'); } };
+  const tok = ++tripToken;
+  feed(S.name, def.feed);
+  net.sendAct({ a: def.id });
+  S.walkTo = { x: sp.x, z: sp.z, t: 0, best: Infinity, stuck: 0, then: () => {
+    if (tok !== tripToken) return;
+    me.group.rotation.y = sp.ry;
+    me.play(def.pose);
+    net.sendAct({ a: def.pose });
+    sendState(true);
+    const dur = (ACTIONS.find((x) => x.id === def.pose)?.dur || 4) * 1000;
+    setTimeout(() => { if (tok === tripToken && !S.walkTo && !S.sitting) goSit(); }, dur + 300);
+  } };
+}
+
+// 같은 층 알림: "○○님이 박수를 쳤습니다."
+function feed(name, text) { if (text && S.entered) toast(`${name}님이 ${text}`, 4000); }
+const saidText = (m) => `'${m}'라고 말했습니다.`;
+
+// 냉장고: 무알콜 맥주 · 콜라 · 사이다 무제한 무료
+function openFridge() {
+  const el = $('#fridge-list');
+  el.innerHTML = '';
+  for (const id of ['t_beer', 't_cola', 't_cider']) {
+    const def = ACTIONS.find((a) => a.id === id);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `drink ${id}`;
+    b.innerHTML = `<i></i><b>${def.name}</b><small>무제한 무료</small>`;
+    b.onclick = () => { closeModal('fridge-modal'); doTrip(def); };
+    el.append(b);
+  }
+  openModal('fridge-modal');
+}
+
+// 자리 이동: 독서실처럼 1~20번 자리를 잔디 칸으로 보여 주고, 빈 칸을 누르면 옮겨요
+function openSeats() { renderSeats(); openModal('seat-modal'); }
+function renderSeats() {
+  const g = $('#seat-grid');
+  g.innerHTML = '';
+  // 5칸씩 4줄. 1~5번 줄이 맨 아래(입구 쪽)
+  for (let row = 3; row >= 0; row--) for (let c = 0; c < 5; c++) {
+    const i = row * 5 + c;
+    if (i >= SEATS) continue;
+    const o = ownerOf(i);
+    const b = document.createElement('button');
+    b.type = 'button';
+    let cls = 'empty', label = '빈 자리';
+    if (o === 'me') { cls = 'mine'; label = '내 자리'; }
+    else if (o) { const p = S.peers.get(o); cls = p.st?.sit ? 'taken' : 'away'; label = p.pf.n; }
+    b.className = `seat-cell ${cls}`;
+    b.innerHTML = `<b>${i + 1}</b><span>${esc(label)}</span>`;
+    b.title = o === 'me' ? '지금 내 자리' : o ? `${label} 님 자리 · 눌러서 구경하기` : `${i + 1}번으로 옮기기`;
+    b.onclick = () => {
+      if (o === 'me') { toast('지금 앉아 있는 자리예요'); return; }
+      closeModal('seat-modal');
+      if (o) openCard(i, o); else moveToSeat(i);
+    };
+    g.append(b);
+  }
+  const used = S.peers.size + (S.seat >= 0 ? 1 : 0);
+  $('#seat-note').textContent = `${SEATS - used}자리 비어 있어요`;
 }
 
 // 사무실 한 바퀴 (자동으로 걷기). 다 돌면 내 자리로 돌아와 앉아요
 let touring = false;
 function startTour() {
   if (!office?.tour || !me) return;
+  tripToken++;
   if (S.sitting) standUp();
   const pts = office.tour, p = me.group.position;
   let k = 0, best = Infinity;
@@ -422,6 +496,8 @@ function addOrUpdatePeer(id, pf, seat) {
   } else {
     if (JSON.stringify(p.pf.look) !== JSON.stringify(pf.look)) p.av.setLook(fixLook(pf.look));
     if (p.pf.n !== pf.n) p.av.setName(pf.n);
+    // '하나' 모드로 메모를 고르면 알림
+    if (pf.mm === 'one' && (p.pf.mm !== 'one' || p.pf.mi !== pf.mi) && pf.memos?.[pf.mi]?.trim()) feed(pf.n, saidText(pf.memos[pf.mi]));
     p.pf = pf;
     if (seat !== undefined) p.seat = seat;
   }
@@ -482,6 +558,7 @@ function updatePeople() {
   const n = S.peers.size + (S.entered ? 1 : 0);
   $('#hud-people').textContent = n;
   office?.paintBoard(S.floor || 1, n);
+  if (!$('#seat-modal').hidden) renderSeats();
 }
 
 // ───────── 네트워크 ─────────
@@ -516,13 +593,20 @@ const net = new Net({
     p.seat = n;
     refreshScreen(old);
     refreshScreen(n);
+    if (!$('#seat-modal').hidden) renderSeats();
   },
   onSeatNo() { toast('그 자리는 방금 다른 분이 앉았어요'); },
   onAct(id, d) {
     const p = S.peers.get(id);
     if (!p) return;
-    if (d.m !== undefined) { if (S.othersMemo) p.av.pin(d.m); }
-    else if (d.a) p.av.play(d.a);
+    if (d.m !== undefined) {
+      if (S.othersMemo) p.av.pin(d.m);
+      const m = p.pf.memos?.[d.m];
+      if (m?.trim()) feed(p.pf.n, saidText(m));
+    } else if (d.a) {
+      p.av.play(d.a);
+      feed(p.pf.n, ACTIONS.find((x) => x.id === d.a)?.feed);
+    }
   },
   onLeave(id) {
     const p = removePeer(id);
@@ -604,8 +688,9 @@ async function enter(floor) {
 // ───────── 동작 · 메모 ─────────
 function doAct(id) {
   if (!me) return;
-  me.play(id);
+  const on = me.play(id);
   net.sendAct({ a: id });
+  if (on) feed(S.name, ACTIONS.find((x) => x.id === id)?.feed);
 }
 
 function renderActions() {
@@ -617,12 +702,21 @@ function renderActions() {
   sitBtn.innerHTML = S.sitting ? '<span>사무실 한 바퀴</span><small class="cap">자동으로 걷기</small>' : '<span>내 자리로</span><small class="cap">앉아서 코딩</small>';
   sitBtn.onclick = () => { if (S.sitting) startTour(); else { stopTour(); goSit(); } };
   el.append(sitBtn);
-  for (const a of ACTIONS.filter((x) => !x.auto)) {
+  const mv = document.createElement('button');
+  mv.className = 'act';
+  mv.innerHTML = '<span>자리 이동</span><small class="cap">1~20번 고르기</small>';
+  mv.onclick = openSeats;
+  el.append(mv);
+  // 아래 막대: 제자리 동작 · 왼쪽 세로 메뉴: 걸어갔다 오는 동작 (냉장고는 음료 고르기)
+  const left = $('#left-acts');
+  left.innerHTML = '';
+  for (const a of ACTIONS.filter((x) => !x.auto && x.pose !== true && !x.hidden)) {
+    const moving = a.trip || a.fridge;
     const b = document.createElement('button');
-    b.className = 'act';
+    b.className = moving ? 'side-btn' : 'act';
     b.innerHTML = `<span>${a.name}</span><small class="cap">${a.cap}</small>`;
-    b.onclick = () => doAct(a.id);
-    el.append(b);
+    b.onclick = () => (a.fridge ? openFridge() : a.trip ? doTrip(a) : doAct(a.id));
+    (moving ? left : el).append(b);
   }
 }
 
@@ -638,7 +732,19 @@ function setMemoMode(mode, idx = S.memoIdx) {
 }
 function renderMemoBar() {
   const el = $('#memo-bar');
+  const open = !!el.querySelector('.memo-pop:not([hidden])');
   el.innerHTML = '';
+  const cur = S.memoMode === 'one' ? `하나 · ${S.profile.memos[S.memoIdx] || ''}` : S.memoMode === 'auto' ? '자동' : '없음';
+  const btn = document.createElement('button');
+  btn.className = 'memo-toggle';
+  btn.setAttribute('aria-expanded', open);
+  btn.innerHTML = `<span class="ic">💬</span><span class="cur">${esc(cur)}</span><span class="car">▴</span>`;
+  btn.title = '말풍선 · 메모 고르기';
+  const pop = document.createElement('div');
+  pop.className = 'memo-pop glass';
+  pop.hidden = !open;
+  btn.onclick = (e) => { e.stopPropagation(); pop.hidden = !pop.hidden; btn.setAttribute('aria-expanded', !pop.hidden); };
+  // 말풍선 방식
   const seg = document.createElement('div');
   seg.className = 'memo-seg';
   seg.setAttribute('role', 'radiogroup');
@@ -648,34 +754,38 @@ function renderMemoBar() {
     b.className = 'seg';
     b.setAttribute('role', 'radio');
     b.setAttribute('aria-checked', S.memoMode === m.id);
-    b.title = m.cap;
-    b.textContent = m.name;
-    b.onclick = () => {
-      setMemoMode(m.id);
-      toast(m.id === 'auto' ? '메모가 머리 위에 돌아가며 떠요' : m.id === 'one' ? `"${S.profile.memos[S.memoIdx] || ''}" 메모만 계속 떠요. 다른 메모를 누르면 바뀌어요` : '말풍선을 껐어요. 메모를 누르면 한 번만 띄워요');
-    };
+    b.innerHTML = `${m.name}<small>${m.cap}</small>`;
+    b.onclick = () => setMemoMode(m.id);
     seg.append(b);
   }
-  el.append(seg);
+  pop.append(seg);
+  // 메모 5개: '하나'면 그 메모를 계속, 아니면 지금 한 번 띄우기
+  const list = document.createElement('div');
+  list.className = 'memo-list';
   S.profile.memos.forEach((m, i) => {
     if (!m.trim()) return;
     const b = document.createElement('button');
     b.className = 'memo';
     b.textContent = m;
-    if (S.memoMode === 'one') { b.setAttribute('aria-pressed', i === S.memoIdx); b.title = '이 메모를 계속 띄우기'; }
-    else b.title = '지금 머리 위에 한 번 띄우기';
+    if (S.memoMode === 'one') b.setAttribute('aria-pressed', i === S.memoIdx);
     b.onclick = () => {
-      if (S.memoMode === 'one') { setMemoMode('one', i); return; }
+      pop.hidden = true;
+      if (S.memoMode === 'one') { setMemoMode('one', i); feed(S.name, saidText(m)); return; }
       me?.pin(i); net.sendAct({ m: i });
+      feed(S.name, saidText(m));
     };
-    el.append(b);
+    list.append(b);
   });
+  pop.append(list);
   const ed = document.createElement('button');
   ed.className = 'memo edit';
   ed.textContent = '✎ 메모 고치기';
-  ed.onclick = () => openDesk('memo');
-  el.append(ed);
+  ed.onclick = () => { pop.hidden = true; openDesk('memo'); };
+  pop.append(ed);
+  el.append(pop, btn);
 }
+// 바깥을 누르면 메모 창 닫기
+document.addEventListener('pointerdown', (e) => { if (!e.target.closest('#memo-bar')) { const p = $('#memo-bar .memo-pop'); if (p && !p.hidden) { p.hidden = true; $('#memo-bar .memo-toggle')?.setAttribute('aria-expanded', false); } } });
 
 // ───────── 책상 정보 카드 ─────────
 let cardFor = null;
@@ -746,11 +856,11 @@ function closeModal(id) {
     if (S.sitting) camBehind(office.seats[S.seat].ry, 3.4);
   }
 }
-function closeAll() { ['desk-modal', 'peek-modal', 'floor-modal', 'guide-modal'].forEach(closeModal); if (!$('#creator').hidden) closeModal('creator'); closeCard(); $('#menu').hidden = true; }
+function closeAll() { ['desk-modal', 'peek-modal', 'floor-modal', 'guide-modal', 'seat-modal', 'fridge-modal', 'browse-modal', 'shop-modal'].forEach(closeModal); if (!$('#creator').hidden) closeModal('creator'); closeCard(); $('#menu').hidden = true; }
 document.addEventListener('click', (e) => {
   const c = e.target.closest('[data-close]');
   if (c) { const id = c.dataset.close; if (id === 'card') closeCard(); else closeModal(id); }
-  if (e.target.classList?.contains('modal')) closeModal(e.target.id);
+  if (e.target.classList?.contains('modal') || e.target.id === 'creator') closeModal(e.target.id); // 팝업 바깥을 누르면 닫기
 });
 
 // ───────── 토스트 ─────────
@@ -918,20 +1028,22 @@ function renderDeco() {
   for (const [kind, key, el] of [['mon', 'mon', '#deco-mon'], ['kb', 'kb', '#deco-kb'], ['chair', 'chair', '#deco-chair']]) {
     const box = $(el);
     box.innerHTML = '';
-    for (const it of SHOP[kind]) box.append(shopCard(kind, it, d[key] === it.id, () => { d[key] = it.id; apply(); }));
+    for (const it of SHOP[kind].filter((x) => S.owned.has(shopKey(kind, x.id)))) box.append(shopCard(kind, it, d[key] === it.id, () => { d[key] = it.id; apply(); }));
   }
   const slotCount = d.it.filter((id) => !DESK_ITEMS.find((x) => x.id === id)?.spot).length;
   $('#deco-count').textContent = `책상 위 ${slotCount}/${MAX_ITEMS}`;
   const items = $('#deco-items');
   items.innerHTML = '';
   for (const tier of [0, 1, 2, 3]) {
+    const mine = DESK_ITEMS.filter((x) => x.tier === tier && S.owned.has(shopKey('it', x.id)));
+    if (!mine.length) continue;
     const h = document.createElement('p');
     h.className = 'tier-h';
     h.textContent = TIERS[tier];
     items.append(h);
     const row = document.createElement('div');
     row.className = 'shop-grid';
-    for (const it of DESK_ITEMS.filter((x) => x.tier === tier)) {
+    for (const it of mine) {
       const on = d.it.includes(it.id);
       row.append(shopCard('it', it, on, () => {
         if (on) d.it = d.it.filter((x) => x !== it.id);
@@ -947,12 +1059,49 @@ function renderDeco() {
   renderXp();
 }
 
+// 상점: 살 수 있는 것만. 사면 바로 내 책상에 놓여요 (빼거나 바꾸는 건 책상 꾸미기에서)
+function openShop() { renderShop(); openModal('shop-modal'); }
+function renderShop() {
+  const d = S.profile.desk;
+  const equip = (kind, it) => {
+    if (kind === 'it') {
+      const slots = d.it.filter((id) => !DESK_ITEMS.find((x) => x.id === id)?.spot).length;
+      if (it.spot || slots < MAX_ITEMS) d.it = [...d.it, it.id];
+      else toast(`책상 위가 꽉 찼어요. 책상 꾸미기에서 하나를 치우면 놓을 수 있어요`);
+    } else d[kind] = it.id;
+    S.profile.desk = cleanDesk(d);
+    saveDesk();
+  };
+  for (const kind of ['mon', 'kb', 'chair']) {
+    const el = $('#shop-' + kind);
+    el.innerHTML = '';
+    for (const it of SHOP[kind].filter((x) => x.price > 0)) {
+      const owned = S.owned.has(shopKey(kind, it.id));
+      el.append(shopCard(kind, it, false, () => { if (owned) { toast('이미 가지고 있어요. 책상 꾸미기에서 바꿔 놓을 수 있어요'); return; } equip(kind, it); renderShop(); }));
+    }
+  }
+  const items = $('#shop-items');
+  items.innerHTML = '';
+  for (const tier of [1, 2, 3]) {
+    const h = document.createElement('p'); h.className = 'tier-h'; h.textContent = TIERS[tier]; items.append(h);
+    const row = document.createElement('div'); row.className = 'shop-grid';
+    for (const it of DESK_ITEMS.filter((x) => x.tier === tier)) {
+      const owned = S.owned.has(shopKey('it', it.id));
+      row.append(shopCard('it', it, false, () => { if (owned) { toast('이미 가지고 있어요. 책상 꾸미기에서 놓거나 뺄 수 있어요'); return; } equip('it', it); renderShop(); }));
+    }
+    items.append(row);
+  }
+  renderXp();
+}
+
 // ───────── 집중 → 경험치 · 포인트 ─────────
 function renderXp() {
   const L = lv(), a = xpForLevel(L), b = xpForLevel(L + 1);
   const pct = Math.round(((S.xp - a) / (b - a)) * 100);
   $('#xp-chip').innerHTML = `<b>Lv ${L}</b><span class="xp-bar"><i style="width:${pct}%"></i></span><span>${S.pts.toLocaleString()} P</span>`;
   $('#xp-chip').title = `경험치 ${S.xp} · 다음 레벨까지 ${b - S.xp}분 집중`;
+  const sw = $('#shop-wallet');
+  if (sw) sw.innerHTML = `<b>Lv ${L}</b> · 다음 레벨까지 ${b - S.xp}분 · <b class="pts">${S.pts.toLocaleString()} P</b>`;
   const w = $('#deco-wallet');
   if (w) w.innerHTML = `<b>Lv ${L}</b> · 다음 레벨까지 ${b - S.xp}분 · <b class="pts">${S.pts.toLocaleString()} P</b>`;
 }
@@ -1103,11 +1252,40 @@ $('#creator-done').onclick = () => {
   closeModal('creator');
 };
 
+// ───────── 오른쪽 메뉴: 내 웹 올리기 · 웹 둘러보기 · 상점 ─────────
+$('#btn-upload').onclick = () => openDesk('links');
+$('#btn-browse').onclick = () => {
+  const people = [['me', myPf(), S.seat], ...[...S.peers.entries()].map(([id, p]) => [id, p.pf, p.seat])].filter(([, pf]) => pf.links?.length);
+  const el = $('#browse-list');
+  el.innerHTML = people.length ? '' : '<p class="c-empty">아직 이 층에 올라온 결과물이 없어요. 내 웹 올리기로 첫 번째가 되어 보세요.</p>';
+  for (const [who, pf, seat] of people) {
+    const row = document.createElement('div');
+    row.className = 'browse-row';
+    row.innerHTML = `<div class="b-who"><b>${esc(pf.n)}${who === 'me' ? ' (나)' : ''}</b><small>${seat >= 0 ? `${seat + 1}번 책상 · ` : ''}Lv ${pf.lv || 1}</small></div>`;
+    const grid = document.createElement('div');
+    grid.className = 'b-links';
+    pf.links.slice(0, MAX_LINKS).forEach((l, k) => {
+      const host = hostOf(l.u);
+      const c = document.createElement('div');
+      c.className = 'c-link';
+      c.innerHTML = `<span class="c-tile" style="background:${TILE_COLORS[(host.length + k) % TILE_COLORS.length]}">${esc((l.t || host || '?').trim()[0] || '?')}</span>
+        <div><b>${esc(l.t || host)}</b><span class="host">${esc(host)}</span>${l.d ? `<p>${esc(l.d)}</p>` : ''}</div>
+        <div class="acts"><button class="ghost small-btn">미리보기</button><a class="primary small-btn" href="${esc(l.u)}" target="_blank" rel="noopener noreferrer">접속하기 ↗</a></div>`;
+      c.querySelector('button').onclick = () => { closeModal('browse-modal'); peek(l); };
+      grid.append(c);
+    });
+    row.append(grid);
+    el.append(row);
+  }
+  openModal('browse-modal');
+};
 // ───────── 화면 위 단추 ─────────
 $('#floor-chip').onclick = openFloors;
 $('#btn-desk').onclick = () => openDesk();
 $('#btn-shop').onclick = () => openDesk('deco');
-$('#xp-chip').onclick = () => openDesk('deco');
+$('#xp-chip').onclick = openShop;
+$('#btn-store').onclick = openShop;
+$('#deco-to-shop').onclick = () => { closeModal('desk-modal'); openShop(); };
 $('#btn-char').onclick = openCreator;
 $('#btn-menu').onclick = () => { $('#menu').hidden = !$('#menu').hidden; $('#menu-others').textContent = S.othersMemo ? '다른 분 메모 숨기기' : '다른 분 메모 보기'; };
 $('#menu').addEventListener('click', (e) => {
@@ -1184,6 +1362,7 @@ function updateMe(dt) {
   if (len > 0.15) {
     S.walkTo = null;
     stopTour();
+    tripToken++; // 걸어가던 동작은 멈춰요
     if (S.sitting) standUp();
     const fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw);
     const rx = Math.cos(cam.yaw), rz = -Math.sin(cam.yaw);
@@ -1225,12 +1404,16 @@ async function boot() {
   ]).catch(() => {});
   const floorP = S.floor ? Promise.resolve(S.floor) : (Q.has('demo') ? Promise.resolve(1) : pickDefaultFloor());
   S.floor = await floorP;
+  // 주소는 처음부터 ?f=층 으로 (soho-lab.site 로 들어와도 대문 없이 그 층으로)
+  history.replaceState(null, '', `?f=${S.floor}${Q.has('relay') ? '&relay=' + Q.get('relay') : ''}${Q.has('solo') ? '&solo' : ''}${Q.has('theme') ? '&theme=' + Q.get('theme') : ''}${Q.has('debug') ? '&debug' : ''}`);
   setOffice(S.floor);
   setInterval(applyTime, 10 * 60 * 1000);
   frame();
+  // 사무실이 다 지어지면 로딩 화면 뒤로 사무실이 보여요
+  requestAnimationFrame(() => $('#loading').classList.add('scene'));
   if (RELAY_URL && !Q.has('relay') && !Q.has('demo')) fetch(`${RELAY_URL}/visit`, { method: 'POST' }).catch(() => {});
   // 로딩 화면의 글을 읽을 수 있게 조금은 보여 줘요
-  const wait = Math.max(0, (Q.has('fast') ? 0 : 2200) - (performance.now() - t0));
+  const wait = Q.has('fast') ? 0 : 3200;
   await new Promise((r) => setTimeout(r, wait));
   await enter(S.floor);
   $('#loading').classList.add('out');

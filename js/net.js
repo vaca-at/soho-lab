@@ -17,7 +17,7 @@ export class Net {
   async counts() {
     if (!RELAY_URL) return null;
     try {
-      const r = await fetch(`${RELAY_URL}/counts?n=${FLOORS}`, { signal: AbortSignal.timeout(5000) });
+      const r = await fetch(`${RELAY_URL}/counts?n=${FLOORS}`, { signal: AbortSignal.timeout(2500) });
       const j = await r.json();
       return j.counts;
     } catch { return null; }

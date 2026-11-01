@@ -114,6 +114,19 @@ function actionPose(action, t, base) {
     }
     case 'wave':
       return mix(base, { aR: [-0.3, -2.5 + Math.sin(t * 12) * 0.35] }, bump(t, 0, 0.3, 1.8, 2.2));
+    case 'pour': // 커피 머신 앞에서 두 손으로 컵을 받쳐요
+      return mix(base, { aL: [-1.1, 0.25], aR: [-1.1 + Math.sin(t * 2) * 0.08, -0.25], head: 0.2 }, bump(t, 0, 0.4, 3.6, 4));
+    case 'print': // 프린터 위 버튼을 톡톡, 종이를 집어요
+      return mix(base, { aR: [-0.9 - Math.abs(Math.sin(t * 6)) * 0.25, -0.1], aL: [-0.6, 0.2], head: 0.3, hip: 0.12 }, bump(t, 0, 0.4, 3.6, 4));
+    case 'can_beer': case 'can_cola': case 'can_cider':
+    case 'drink': {
+      const sip = bump(t, 0.5, 1.1, 2.6, 3.2);
+      return mix(base, { aR: [-0.9 - sip * 1.0, -0.15 - sip * 0.25], head: -0.12 * sip }, bump(t, 0, 0.4, 3.2, 3.6));
+    }
+    case 'board': // 오른팔을 들어 보드에 쓱쓱
+      return mix(base, { aR: [-2.3 + Math.sin(t * 5) * 0.15, -0.2 + Math.cos(t * 5) * 0.12], aL: [-0.2, 0.1], head: -0.15 }, bump(t, 0, 0.4, 4.6, 5));
+    case 'window': // 창밖을 보며 크게 기지개
+      return mix(base, { aL: [-2.8, 0.3], aR: [-2.8, -0.3], head: -0.3, hip: -0.1 }, bump(t, 0.3, 1.2, 3.8, 5));
   }
   return base;
 }
@@ -162,7 +175,7 @@ export class Avatar {
     tex.colorSpace = THREE.SRGBColorSpace;
     this.bubble = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false, transparent: true, opacity: 0 }));
     this.bubble.scale.set(2.0, 0.625, 1);
-    this.bubble.position.y = this.tagY + 0.5;
+    this.bubble.position.y = this.tagY + 0.4;
     this.bubble.renderOrder = 11;
     this.bubble.visible = false;
     this.group.add(this.bubble);
@@ -246,9 +259,9 @@ export class Avatar {
     // 체형: 키·등신·체격. 이름표와 말풍선도 키에 맞춰요
     const B = bodyOf(look);
     applyBody(this, B);
-    this.tagY = B.k * (0.46 * B.leg + 0.56 * B.th + 0.58 * B.head) + 0.45;
+    this.tagY = B.k * (0.46 * B.leg + 0.56 * B.th + 0.58 * B.head) + 0.3;
     if (this.tag) this.tag.position.y = this.tagY;
-    if (this.bubble) this.bubble.position.y = this.tagY + 0.5;
+    if (this.bubble) this.bubble.position.y = this.tagY + 0.4;
     bakeBlock(this);
 
     // 머그컵 (오른손)
@@ -260,6 +273,16 @@ export class Avatar {
     mug.visible = false;
     this.armR.add(mug);
     this.mug = mug;
+    // 냉장고 음료 캔 (무알콜 맥주 · 콜라 · 사이다)
+    this.cans = {};
+    for (const [id, c, band] of [['can_beer', '#d9a43a', '#f2d27a'], ['can_cola', '#c8302a', '#f4f4f2'], ['can_cider', '#3fa85a', '#e8f6ec']]) {
+      const can = new THREE.Group();
+      box(can, c, 0.09, 0.17, 0.09, 0, 0, 0); box(can, band, 0.092, 0.04, 0.092, 0, 0.02, 0); box(can, '#c9ccd2', 0.07, 0.01, 0.07, 0, 0.09, 0);
+      can.position.set(0, this.handY - 0.1, 0.06);
+      can.visible = false;
+      this.armR.add(can);
+      this.cans[id] = can;
+    }
 
     body.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   }
@@ -309,7 +332,11 @@ export class Avatar {
     this.armR.rotation.set(p.aR[0], 0, p.aR[1]);
     this.legL.rotation.set(p.lL[0], 0, p.lL[1]);
     this.legR.rotation.set(p.lR[0], 0, p.lR[1]);
-    this.mug.visible = this.action === 'coffee';
+    this.mug.visible = this.action === 'coffee' || this.action === 'pour' || this.action === 'drink';
+    for (const [id, can] of Object.entries(this.cans)) can.visible = this.action === id;
+    const down = this.seated ? 0.38 * (this.sitK || 1) : 0;
+    this.tag.position.y = this.tagY - down;
+    this.bubble.position.y = this.tagY + 0.4 - down;
     this.updatePet(dt);
     this.tickMemo(dt);
   }

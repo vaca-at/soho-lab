@@ -188,13 +188,35 @@ export const FREE_OWNED = Object.entries(SHOP).flatMap(([k, list]) => list.filte
 export const defaultDesk = () => ({ c: 'oak', ch: 'charcoal', mon: 'm', kb: 'basic', chair: 'basic', it: ['plant', 'mug', 'lamp'] });
 
 // 동작. auto: 동작 막대에 안 나옴(앉으면 저절로). dur: 끝나는 시간(초)
+// feed: 같은 층에 뜨는 알림 ("○○님이 박수를 쳤습니다.")
+// trip: 그 자리까지 걸어가서 pose 를 하고 내 자리로 돌아와요. pose: 동작 막대에 안 나오는 자세
 export const ACTIONS = [
   { id: 'type', name: '코딩', auto: true },
-  { id: 'stretch', name: '기지개', cap: '두 팔 쭉', dur: 3 },
-  { id: 'coffee', name: '커피', cap: '한 모금', dur: 3.6 },
-  { id: 'think', name: '고민', cap: '턱 괴고 생각', dur: 6 },
-  { id: 'clap', name: '박수', cap: '배포 성공!', dur: 2.6 },
-  { id: 'wave', name: '손인사', cap: '반가워요', dur: 2.2 },
+  { id: 'stretch', name: '기지개', cap: '두 팔 쭉', dur: 3, feed: '기지개를 켰습니다.' },
+  { id: 'coffee', name: '커피', cap: '한 모금', dur: 3.6, feed: '커피를 한 모금 마셨습니다.' },
+  { id: 'think', name: '고민', cap: '턱 괴고 생각', dur: 6, feed: '고민에 빠졌습니다.' },
+  { id: 'clap', name: '박수', cap: '배포 성공!', dur: 2.6, feed: '박수를 쳤습니다.' },
+  { id: 'wave', name: '손인사', cap: '반가워요', dur: 2.2, feed: '손을 흔들었습니다.' },
+  // 걸어갔다 오는 동작
+  { id: 't_coffee', name: '커피 타 오기', cap: '커피 바까지', trip: 'coffee', pose: 'pour', feed: '커피를 타러 갔습니다.' },
+  { id: 't_print', name: '프린트하기', cap: '프린터까지', trip: 'printer', pose: 'print', feed: '프린트하러 갔습니다.' },
+  { id: 't_water', name: '물 마시기', cap: '정수기까지', trip: 'water', pose: 'drink', feed: '물 마시러 갔습니다.' },
+  { id: 't_board', name: '화이트보드', cap: '아이디어 적기', hidden: true, trip: 'board', pose: 'board', feed: '화이트보드에 뭔가 적으러 갔습니다.' },
+  { id: 't_window', name: '바람 쐬기', cap: '창가에서 기지개', trip: 'window', pose: 'window', feed: '창가로 바람 쐬러 갔습니다.' },
+  { id: 't_fridge', name: '냉장고 가기', cap: '음료 무제한 무료', fridge: true },
+  // 냉장고 음료 (무알콜 맥주 · 콜라 · 사이다 무제한 무료). 냉장고를 누르면 고르는 창이 떠요
+  { id: 't_beer', name: '무알콜 맥주', hidden: true, trip: 'fridge', pose: 'can_beer', feed: '냉장고에서 무알콜 맥주를 꺼냈습니다. 🍺' },
+  { id: 't_cola', name: '콜라', hidden: true, trip: 'fridge', pose: 'can_cola', feed: '냉장고에서 콜라를 꺼냈습니다. 🥤' },
+  { id: 't_cider', name: '사이다', hidden: true, trip: 'fridge', pose: 'can_cider', feed: '냉장고에서 사이다를 꺼냈습니다. 🫧' },
+  { id: 'can_beer', pose: true, dur: 4 },
+  { id: 'can_cola', pose: true, dur: 4 },
+  { id: 'can_cider', pose: true, dur: 4 },
+  // 도착해서 하는 자세 (막대에 안 나옴)
+  { id: 'pour', pose: true, dur: 4 },
+  { id: 'print', pose: true, dur: 4 },
+  { id: 'drink', pose: true, dur: 3.6 },
+  { id: 'board', pose: true, dur: 5 },
+  { id: 'window', pose: true, dur: 5 },
 ];
 
 // 처음 들어온 분께 채워 두는 메모 5개 (내 책상 꾸미기에서 바꿀 수 있음)

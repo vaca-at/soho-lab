@@ -435,6 +435,31 @@ function feedLine(text) {
 function feed(name, text) { if (text && S.entered) feedLine(`${name}님이 ${text}`); }
 const saidText = (m) => `'${m}'라고 말했습니다.`;
 
+// 캔 그림: 은색 뚜껑 · 테두리, 둥근 몸통 명암, 앞면 무늬 (상표 없이 소호랩 캔)
+function canSvg(id) {
+  const k = { t_beer: { body: '#d9a43a', dark: '#9a6a1a', ink: '#fff6dc', t1: 'LAGER', t2: '0.0', mark: 'hop' }, t_cola: { body: '#c8302a', dark: '#7a1612', ink: '#ffffff', t1: 'COLA', t2: '355ml', mark: 'wave' }, t_cider: { body: '#2f9a52', dark: '#16592c', ink: '#ffffff', t1: 'CIDER', t2: 'LEMON·LIME', mark: 'bubbles' } }[id];
+  const g = 'g' + id;
+  const mark = k.mark === 'wave'
+    ? `<path d="M6 58 C 20 46, 34 70, 54 52 L54 62 C 36 78, 20 56, 6 68 Z" fill="#fff" opacity=".95"/>`
+    : k.mark === 'hop'
+      ? `<g transform="translate(30 36)"><ellipse rx="7" ry="9" fill="#5c8a2c"/><path d="M-7 0 h14 M-6 -4 h12 M-6 4 h12" stroke="#3f6a1a" stroke-width="1.2"/><path d="M0 -9 v-5" stroke="#5c8a2c" stroke-width="2"/></g>`
+      : `<g fill="#fff" opacity=".85"><circle cx="16" cy="34" r="3"/><circle cx="26" cy="26" r="2"/><circle cx="40" cy="32" r="4"/><circle cx="46" cy="22" r="2"/><circle cx="20" cy="22" r="1.6"/></g><path d="M6 70 L54 50 L54 58 L6 78 Z" fill="#f2e85a" opacity=".9"/>`;
+  return `<svg class="can" viewBox="0 0 60 104" aria-hidden="true">
+    <defs><linearGradient id="${g}" x1="0" x2="1"><stop offset="0" stop-color="#000" stop-opacity=".45"/><stop offset=".22" stop-color="#fff" stop-opacity=".35"/><stop offset=".35" stop-color="#fff" stop-opacity="0"/><stop offset=".78" stop-color="#000" stop-opacity=".1"/><stop offset="1" stop-color="#000" stop-opacity=".5"/></linearGradient>
+    <linearGradient id="${g}m" x1="0" x2="1"><stop offset="0" stop-color="#8a9098"/><stop offset=".3" stop-color="#eef0f2"/><stop offset=".7" stop-color="#b9bec6"/><stop offset="1" stop-color="#7a8088"/></linearGradient></defs>
+    <path d="M8 12 L52 12 L54 20 L54 90 L52 96 L8 96 L6 90 L6 20 Z" fill="${k.body}"/>
+    ${mark}
+    <text x="30" y="84" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="11" fill="${k.ink}" letter-spacing=".5">${k.t1}</text>
+    <text x="30" y="92" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="5.5" fill="${k.ink}" opacity=".85">${k.t2}</text>
+    <path d="M6 20 L6 90 L8 96 L52 96 L54 90 L54 20 L52 12 L8 12 Z" fill="url(#${g})"/>
+    <path d="M8 12 L52 12 L54 20 L6 20 Z" fill="url(#${g}m)"/>
+    <ellipse cx="30" cy="12" rx="22" ry="4.5" fill="url(#${g}m)" stroke="#6a7078" stroke-width=".8"/>
+    <ellipse cx="30" cy="12" rx="17" ry="3.2" fill="#c9ced6"/>
+    <path d="M27 10.5 h8 a2 2 0 0 1 0 3 h-8 a2 2 0 0 1 0-3z" fill="#9aa0a8"/>
+    <path d="M8 96 L52 96 L50 100 L10 100 Z" fill="url(#${g}m)"/>
+  </svg>`;
+}
+
 // 냉장고: 무알콜 맥주 · 콜라 · 사이다 무제한 무료
 function openFridge() {
   const el = $('#fridge-list');
@@ -444,7 +469,7 @@ function openFridge() {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = `drink ${id}`;
-    b.innerHTML = `<i></i><b>${def.name}</b><small>무제한 무료</small>`;
+    b.innerHTML = `${canSvg(id)}<b>${def.name}</b><small>무제한 무료</small>`;
     b.onclick = () => { closeModal('fridge-modal'); doTrip(def); };
     el.append(b);
   }

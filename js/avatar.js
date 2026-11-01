@@ -11,6 +11,25 @@ export function mat(color, opts = {}) {
   return matCache.get(key);
 }
 
+// 캔 옆면 무늬 (상표 없이 소호랩 캔)
+const canLabels = new Map();
+function canLabel(id, c, band) {
+  if (canLabels.has(id)) return canLabels.get(id);
+  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 128;
+  const g = cv.getContext('2d');
+  g.fillStyle = c; g.fillRect(0, 0, 256, 128);
+  g.fillStyle = band;
+  if (id === 'can_cola') { g.beginPath(); g.moveTo(0, 70); g.bezierCurveTo(60, 40, 120, 100, 256, 60); g.lineTo(256, 80); g.bezierCurveTo(120, 120, 60, 60, 0, 90); g.fill(); }
+  else if (id === 'can_cider') { g.fillStyle = '#f2e85a'; g.beginPath(); g.moveTo(0, 96); g.lineTo(256, 50); g.lineTo(256, 66); g.lineTo(0, 112); g.fill(); g.fillStyle = '#fff'; for (const [x, y, r] of [[40, 30, 7], [80, 20, 4], [120, 34, 9], [170, 22, 5], [210, 36, 6]]) { g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); } }
+  else { g.fillRect(0, 18, 256, 6); g.fillRect(0, 104, 256, 6); }
+  g.fillStyle = id === 'can_beer' ? '#fff6dc' : '#fff'; g.font = '900 34px Arial Black, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(id === 'can_beer' ? 'LAGER 0.0' : id === 'can_cola' ? 'COLA' : 'CIDER', 128, id === 'can_cola' ? 34 : 66);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+  const m = new THREE.MeshStandardMaterial({ map: t, metalness: 0.35, roughness: 0.35 });
+  canLabels.set(id, m);
+  return m;
+}
+
 export const FONT = '"IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
 
 function roundRect(g, x, y, w, h, r) {
@@ -278,8 +297,12 @@ export class Avatar {
     this.cans = {};
     for (const [id, c, band] of [['can_beer', '#d9a43a', '#f2d27a'], ['can_cola', '#c8302a', '#f4f4f2'], ['can_cider', '#3fa85a', '#e8f6ec']]) {
       const can = new THREE.Group();
-      box(can, c, 0.09, 0.17, 0.09, 0, 0, 0); box(can, band, 0.092, 0.04, 0.092, 0, 0.02, 0); box(can, '#c9ccd2', 0.07, 0.01, 0.07, 0, 0.09, 0);
-      can.position.set(0, this.handY - 0.1, 0.06);
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.2, 18), [canLabel(id, c, band), mat('#c9ccd2', { metalness: 0.7, roughness: 0.3 }), mat('#9aa0a8', { metalness: 0.7, roughness: 0.3 })]);
+      body.castShadow = true;
+      can.add(body);
+      const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.06, 0.02, 18), mat('#dfe2e6', { metalness: 0.7, roughness: 0.25 })); lid.position.y = 0.11; can.add(lid);
+      can.position.set(0, this.handY - 0.12, 0.08);
+      can.scale.setScalar(1.6);
       can.visible = false;
       this.armR.add(can);
       this.cans[id] = can;

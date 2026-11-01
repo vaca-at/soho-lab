@@ -477,3 +477,7 @@ button .cap { display: block; font-size: 10.5px; line-height: 1.3; font-weight: 
 /* 자리 칸: 겹치지 않는 네모 */
 .seat-map .seat-cell { width: 12%; min-height: 0; aspect-ratio: 1.5 / 1; border-radius: 8px; padding: 2px; }
 .seat-island { border-radius: 10px; }
+
+/* 냉장고 캔 그림 */
+.drink .can { width: 46px; height: 80px; filter: drop-shadow(0 6px 6px rgba(0, 0, 0, .45)); transition: transform .15s; }
+.drink:hover .can { transform: translateY(-3px) rotate(-4deg); }

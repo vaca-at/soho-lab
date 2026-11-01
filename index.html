@@ -23,18 +23,19 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="style.css?v=20261101t">
+<link rel="stylesheet" href="style.css?v=20261101u">
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
-  "./js/data.js": "./js/data.js?v=20261101t",
-  "./js/blocky.js": "./js/blocky.js?v=20261101t",
-  "./js/avatar.js": "./js/avatar.js?v=20261101t",
-  "./js/world.js": "./js/world.js?v=20261101t",
-  "./js/net.js": "./js/net.js?v=20261101t",
-  "./js/badwords.js": "./js/badwords.js?v=20261101t",
-  "./js/todo.js": "./js/todo.js?v=20261101t"
+  "./js/data.js": "./js/data.js?v=20261101u",
+  "./js/blocky.js": "./js/blocky.js?v=20261101u",
+  "./js/avatar.js": "./js/avatar.js?v=20261101u",
+  "./js/world.js": "./js/world.js?v=20261101u",
+  "./js/net.js": "./js/net.js?v=20261101u",
+  "./js/badwords.js": "./js/badwords.js?v=20261101u",
+  "./js/todo.js": "./js/todo.js?v=20261101u",
+  "./js/sound.js": "./js/sound.js?v=20261101u"
 } }
 </script>
 </head>
@@ -231,6 +232,7 @@
     </div>
     <div class="hud-right">
       <button id="btn-todo" class="glass icon-btn" aria-controls="todo-panel" aria-expanded="false"><span class="lbl">✅<i id="todo-count" class="todo-count" hidden></i></span><small class="cap">할 일</small></button>
+      <button id="btn-sound" class="glass icon-btn" aria-controls="sound-pop" aria-expanded="false"><span class="lbl">🎵</span><small class="cap">소리</small></button>
       <button id="btn-char" class="glass icon-btn"><span class="lbl">☺</span><small class="cap">캐릭터</small></button>
       <button id="btn-shop" class="glass icon-btn"><span class="lbl">🪴</span><small class="cap">책상 꾸미기</small></button>
       <button id="btn-web" class="glass icon-btn"><span class="lbl">🌐</span><small class="cap">내 웹 자랑</small></button>
@@ -239,7 +241,6 @@
     </div>
   </div>
   <div id="menu" class="glass menu" hidden>
-    <button data-menu="browse">웹 둘러보기</button>
     <button data-menu="memo">말풍선 고치기</button>
     <button data-menu="guide">사용법</button>
     <button data-menu="floor">다른 층으로</button>
@@ -251,6 +252,13 @@
     <ul id="pp-list" class="pp-list"></ul>
     <button type="button" id="pp-floors" class="pp-floors">🛗 다른 층 보기</button>
   </div>
+  <!-- 배경음악 · 배경음: 따로 골라 겹쳐 들어요 -->
+  <div id="sound-pop" class="glass sound-pop" role="dialog" aria-label="배경음악과 배경음" hidden>
+    <header><b>소리</b><button type="button" class="td-x" id="snd-close" aria-label="닫기">✕</button></header>
+    <section><h3>배경음악</h3><div class="snd-grid" id="snd-music"></div><label class="snd-vol"><span>🔈</span><input type="range" id="snd-mvol" min="0" max="1" step="0.05" aria-label="배경음악 크기"></label></section>
+    <section><h3>배경음</h3><div class="snd-grid" id="snd-amb"></div><label class="snd-vol"><span>🔈</span><input type="range" id="snd-avol" min="0" max="1" step="0.05" aria-label="배경음 크기"></label></section>
+    <p class="snd-note">모두 브라우저에서 바로 만드는 소리예요. 저작권 걱정 없어요.</p>
+  </div>
   <div id="toasts"></div>
   <div id="feed" class="feed" aria-live="polite" aria-label="같은 층 알림"></div>
   <div class="bottom">
@@ -259,6 +267,7 @@
   </div>
   <div id="left-acts" class="side-acts right side-col">
     <button type="button" id="btn-seat" class="glass side-seat"><span>🪑 자리 이동</span><small class="cap">1~20번 고르기</small></button>
+    <button type="button" id="btn-browse" class="glass side-seat"><span>👀 웹 둘러보기</span><small class="cap">다른 분 결과물 구경</small></button>
     <nav id="walk-acts" class="glass side-box" aria-label="걸어갔다 오기"></nav>
   </div>
   <!-- 할 일 · 메모: 날마다 따로, 이 기기에만 저장 -->
@@ -277,6 +286,6 @@
   <div id="joystick"><div class="knob"></div></div>
 </section>
 
-<script type="module" src="js/main.js?v=20261101t"></script>
+<script type="module" src="js/main.js?v=20261101u"></script>
 </body>
 </html>

@@ -12,6 +12,7 @@ import { buildOffice, collide, paintScreen, paintSecond, dressDesk, itemModel, S
 import { Net } from './net.js';
 import { findBad } from './badwords.js';
 import { initTodo } from './todo.js';
+import { Sound, MUSIC, AMBIENT } from './sound.js';
 
 const Q = new URLSearchParams(location.search);
 const $ = (s) => document.querySelector(s);
@@ -877,6 +878,7 @@ function renderActions() {
   el.append(sitReel);
   // 아래 막대: 제자리 동작 · 오른쪽 세로 메뉴: [자리 이동] 따로 + 걸어갔다 오는 동작 (냉장고는 음료 고르기)
   $('#btn-seat').onclick = openSeats;
+  $('#btn-browse').onclick = () => openShowcase(null);
   const left = $('#walk-acts');
   left.innerHTML = '';
   // 오른쪽 걸어갔다 오는 동작은 글자 수 짧은 것부터
@@ -1128,7 +1130,6 @@ async function openFloors() {
 }
 
 // ───────── 내 책상 (메모 · 결과물 · 꾸미기 · 상점) ─────────
-let deskTab = 'deco';
 const DESK_TITLES = { deco: '내 책상 꾸미기', memo: '머리 위 말풍선', links: '내 웹 자랑' };
 function openDesk(tab = 'deco') {
   closeCard();
@@ -1150,7 +1151,6 @@ function openDesk(tab = 'deco') {
   openModal('desk-modal');
 }
 function setDeskTab(tab) {
-  deskTab = tab;
   $('#desk-title').textContent = DESK_TITLES[tab] || '내 책상';
   for (const s of $$('#desk-form [data-pane]')) s.hidden = s.dataset.pane !== tab;
   $('#desk-save').hidden = tab === 'deco';
@@ -1633,6 +1633,47 @@ const setTodoOpen = (v) => { todo.open(v); $('#btn-todo').setAttribute('aria-exp
 $('#btn-todo').onclick = () => setTodoOpen(!todo.isOpen);
 $('#td-close').onclick = () => setTodoOpen(false);
 if (store.get('todoOpen', false)) setTodoOpen(true);
+
+// 🎵 소리: 배경음악 5곡 · 배경음 5가지 (고른 건 기억했다가 다음에 처음 누를 때 다시 켜요)
+const sound = new Sound();
+const snd = { music: store.get('music', null), amb: store.get('ambient', null) };
+sound.musicVol = store.get('musicVol', 0.5);
+sound.ambVol = store.get('ambVol', 0.6);
+function renderSound() {
+  const row = (el, list, cur, set) => {
+    el.innerHTML = '';
+    for (const it of [{ id: null, name: '끄기', cap: '' }, ...list]) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'snd' + (it.id ? '' : ' off');
+      b.setAttribute('aria-pressed', cur === it.id);
+      b.innerHTML = `<b>${esc(it.name)}</b>${it.cap ? `<small>${esc(it.cap)}</small>` : ''}`;
+      b.onclick = () => set(it.id);
+      el.append(b);
+    }
+  };
+  row($('#snd-music'), MUSIC, snd.music, (id) => { snd.music = id; store.set('music', id); sound.setMusic(id); renderSound(); });
+  row($('#snd-amb'), AMBIENT, snd.amb, (id) => { snd.amb = id; store.set('ambient', id); sound.setAmbient(id); renderSound(); });
+  $('#btn-sound').classList.toggle('on', !!(snd.music || snd.amb));
+}
+$('#snd-mvol').value = sound.musicVol;
+$('#snd-avol').value = sound.ambVol;
+$('#snd-mvol').oninput = (e) => { sound.setVolume('music', +e.target.value); store.set('musicVol', +e.target.value); };
+$('#snd-avol').oninput = (e) => { sound.setVolume('amb', +e.target.value); store.set('ambVol', +e.target.value); };
+const setSoundOpen = (v) => { $('#sound-pop').hidden = !v; $('#btn-sound').setAttribute('aria-expanded', v); if (v) renderSound(); };
+$('#btn-sound').onclick = (e) => { e.stopPropagation(); setSoundOpen($('#sound-pop').hidden); };
+$('#snd-close').onclick = () => setSoundOpen(false);
+document.addEventListener('pointerdown', (e) => { if (!$('#sound-pop').hidden && !e.target.closest('#sound-pop, #btn-sound')) setSoundOpen(false); });
+renderSound();
+// 지난번에 듣던 소리: 브라우저 규칙상 처음 한 번 누르거나 키를 칠 때 켜요
+if ((snd.music || snd.amb) && !Q.has('mute')) {
+  const wake = () => {
+    removeEventListener('pointerdown', wake, true); removeEventListener('keydown', wake, true);
+    if (snd.music) sound.setMusic(snd.music);
+    if (snd.amb) sound.setAmbient(snd.amb);
+  };
+  addEventListener('pointerdown', wake, true); addEventListener('keydown', wake, true);
+}
 $('#btn-menu').onclick = () => { $('#menu').hidden = !$('#menu').hidden; $('#menu-others').textContent = S.othersMemo ? '다른 분 말풍선 숨기기' : '다른 분 말풍선 보기'; };
 $('#menu').addEventListener('click', (e) => {
   const b = e.target.closest('[data-menu]');
@@ -1640,7 +1681,7 @@ $('#menu').addEventListener('click', (e) => {
   $('#menu').hidden = true;
   const m = b.dataset.menu;
   if (m === 'guide') openModal('guide-modal');
-  if (m === 'browse') openShowcase(null);
+
   if (m === 'memo') openDesk('memo');
   if (m === 'floor') openFloors();
   if (m === 'others') {

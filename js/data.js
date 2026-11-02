@@ -7,6 +7,8 @@ const Q = new URLSearchParams(location.search);
 export const RELAY_URL = Q.get('relay') === 'local' ? 'http://127.0.0.1:8787'
   : Q.has('solo') ? ''
   : 'https://soho-lab-rooms.bellachord.workers.dev';
+// 관리자 구글 로그인 (캠핑장 · 큰법당과 같은 Firebase 프로젝트, 공개 설정값)
+export const FIREBASE = { apiKey: 'AIzaSyA3CxawUPIfGeBWyffsNbCSM3ymjKHLH6o', authDomain: 'moon-d528d.firebaseapp.com', projectId: 'moon-d528d', appId: '1:126636401536:web:25b8a8296ec42b86f99765' };
 
 export const SITE = 'https://soho-lab.site';
 export const FLOORS = 10; // 서버 = 층. 1층부터 10층까지

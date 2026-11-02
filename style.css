@@ -688,3 +688,4 @@ body.calm { cursor: none; }
 }
 .menu { z-index: 5; }
 .swatch.base { font-size: 10.5px; font-weight: 700; color: var(--text); background: repeating-linear-gradient(135deg, #3a2a20 0 6px, #6b4128 6px 12px); text-shadow: 0 1px 2px #000; }
+.menu .menu-admin { display: block; text-align: right; padding: 6px 14px 2px; font-size: 11.5px; color: var(--soft); opacity: .45; text-decoration: none; } .menu .menu-admin:hover { opacity: .9; }

@@ -87,10 +87,36 @@ export default {
       if (r.status === 429) return json(req, { error: 'too many' }, 429);
       return json(req, { ok: true });
     }
-    // 관리자: 신고 목록 보기 · 지우기 (비밀번호는 npx wrangler secret put ADMIN_PASSWORD)
+    // 관리자 로그인 (비밀번호): 맞으면 30일짜리 입장권. 기기에는 비밀번호 대신 입장권만 남아요
+    if (url.pathname === '/admin/login' && req.method === 'POST') {
+      const body = await req.json().catch(() => ({}));
+      if (!env.ADMIN_PASSWORD || !(await same(String(body.password || '').trim(), env.ADMIN_PASSWORD.trim()))) return json(req, { error: 'unauthorized' }, 401);
+      const exp = Date.now() + 30 * 24 * 3600 * 1000;
+      return json(req, { token: `${exp}.${await sign(String(exp), env.ADMIN_PASSWORD.trim())}`, exp });
+    }
+    // 관리자 구글 로그인: Firebase 구글 로그인 증표를 검사해서, 허락된 이메일이면 30일 입장권
+    if (url.pathname === '/admin/google' && req.method === 'POST') {
+      const body = await req.json().catch(() => ({}));
+      const who = await verifyFirebase(String(body.idToken || ''));
+      const allowed = (env.ADMIN_EMAILS || ADMIN_EMAILS).split(',').map((s) => s.trim().toLowerCase());
+      if (!who || !env.ADMIN_PASSWORD) return json(req, { error: 'unauthorized' }, 401);
+      if (!allowed.includes(who.email)) return json(req, { error: 'not admin', email: who.email }, 403);
+      const exp = Date.now() + 30 * 24 * 3600 * 1000;
+      return json(req, { token: `${exp}.${await sign(String(exp), env.ADMIN_PASSWORD.trim())}`, exp, email: who.email });
+    }
+    // 관리자 현황: 방문 · 입장 · 머문 시간 · 동시접속 + 층마다 지금 인원
+    if (url.pathname === '/admin/stats') {
+      const auth = (req.headers.get('Authorization') || '').replace(/^Bearer /, '').trim();
+      if (!env.ADMIN_PASSWORD || !(await adminOk(auth, env.ADMIN_PASSWORD.trim()))) return json(req, { error: 'unauthorized' }, 401);
+      const stats = await env.STATS.get(env.STATS.idFromName('stats')).fetch('https://stats/read').then((r) => r.json());
+      const floors = await Promise.all(Array.from({ length: FLOORS }, (_, i) =>
+        env.ROOMS.get(env.ROOMS.idFromName(`floor-${i + 1}`)).fetch('https://room/live').then((r) => r.json()).catch(() => ({ n: 0 }))));
+      return json(req, { ...stats, floors, online: floors.reduce((a, f) => a + (f.n || 0), 0) });
+    }
+    // 관리자: 신고 목록 보기 · 지우기
     if (url.pathname === '/admin/reports' || url.pathname === '/admin/report-delete') {
       const auth = (req.headers.get('Authorization') || '').replace(/^Bearer /, '').trim();
-      if (!env.ADMIN_PASSWORD || !(await same(auth, env.ADMIN_PASSWORD.trim()))) return json(req, { error: 'unauthorized' }, 401);
+      if (!env.ADMIN_PASSWORD || !(await adminOk(auth, env.ADMIN_PASSWORD.trim()))) return json(req, { error: 'unauthorized' }, 401);
       const stub = env.STATS.get(env.STATS.idFromName('stats'));
       if (url.pathname === '/admin/reports') return json(req, await stub.fetch('https://stats/report/list').then((r) => r.json()));
       const { id } = await req.json().catch(() => ({}));
@@ -108,6 +134,41 @@ async function same(a, b) {
   let d = 0;
   for (let i = 0; i < x.length; i++) d |= x[i] ^ y[i];
   return d === 0;
+}
+// 입장권 "만료시각.서명" 이 맞거나, 비밀번호를 바로 보내도 돼요
+async function adminOk(auth, secret) {
+  const m = /^(\d{13})\.([0-9a-f]{64})$/.exec(auth);
+  if (m) return +m[1] > Date.now() && (await same(m[2], await sign(m[1], secret)));
+  return same(auth, secret);
+}
+// ───────── 구글(Firebase) 로그인 검사 (캠핑장 · 큰법당과 같은 Firebase 프로젝트) ─────────
+const FIREBASE_PROJECT = 'moon-d528d';
+const ADMIN_EMAILS = 'bellachord@gmail.com';
+let googleKeys = { at: 0, keys: [] };
+async function firebaseKeys() {
+  if (Date.now() - googleKeys.at < 3600e3 && googleKeys.keys.length) return googleKeys.keys;
+  const r = await fetch('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com');
+  googleKeys = { at: Date.now(), keys: (await r.json()).keys || [] };
+  return googleKeys.keys;
+}
+const b64u = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)), (c) => c.charCodeAt(0));
+// 서명(구글 공개 열쇠), 발급처, 대상 프로젝트, 만료, 이메일 확인 여부를 모두 본다. 맞으면 { email }
+async function verifyFirebase(token) {
+  try {
+    const [h, p, sgn] = token.split('.');
+    if (!sgn) return null;
+    const head = JSON.parse(new TextDecoder().decode(b64u(h)));
+    const pay = JSON.parse(new TextDecoder().decode(b64u(p)));
+    if (head.alg !== 'RS256') return null;
+    const jwk = (await firebaseKeys()).find((k) => k.kid === head.kid);
+    if (!jwk) return null;
+    const key = await crypto.subtle.importKey('jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
+    const ok = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, b64u(sgn), new TextEncoder().encode(`${h}.${p}`));
+    const now = Date.now() / 1000;
+    if (!ok || pay.aud !== FIREBASE_PROJECT || pay.iss !== `https://securetoken.google.com/${FIREBASE_PROJECT}`) return null;
+    if (!(pay.exp > now) || !(pay.iat <= now + 60) || !pay.sub || !pay.email || pay.email_verified !== true) return null;
+    return { email: String(pay.email).toLowerCase() };
+  } catch { return null; }
 }
 // 신고한 사람 구별용: 접속 주소를 알아볼 수 없게 바꾼 값
 async function sign(msg, secret) {
@@ -158,7 +219,7 @@ function cleanProfile(d) {
 }
 function cleanState(d) {
   if (!d || typeof d !== 'object') return null;
-  return { x: num(d.x, -20, 20), z: num(d.z, -20, 20), ry: num(d.ry, -10, 10), sit: !!d.sit, idle: !!d.idle, a: ID.test(d.a) ? d.a : '' };
+  return { x: num(d.x, -24, 24), z: num(d.z, -16, 14), ry: num(d.ry, -10, 10), sit: !!d.sit, idle: !!d.idle, a: ID.test(d.a) ? d.a : '' };
 }
 
 // 방문 수 저장소 (하나뿐)
@@ -189,6 +250,30 @@ export class Stats extends DurableObject {
       if (/^r:\d{15}$/.test(id)) await this.ctx.storage.delete(id);
       return Response.json({ ok: true });
     }
+    // 입장 · 머문 시간: 층에서 알려 와요
+    if (url.pathname === '/tally') {
+      const b = await req.json(), d = kstDay();
+      if (b.join) await this.bump('joins', d, 1);
+      if (b.stay > 0 && b.stay < 86400) { await this.bump('staySec', d, Math.round(b.stay)); await this.bump('stayN', d, 1); }
+      return Response.json({ ok: true });
+    }
+    // 동시접속 최고 기록: 층마다 인원이 바뀔 때 알려 오면 모두 더해서 오늘 최고 · 역대 최고
+    if (url.pathname === '/peak') {
+      const { room, n } = await req.json();
+      const live = (await this.ctx.storage.get('live')) || {};
+      if (n) live[room] = n; else delete live[room];
+      await this.ctx.storage.put('live', live);
+      const sum = Object.values(live).reduce((a, b) => a + b, 0), d = kstDay();
+      const peaks = (await this.ctx.storage.get('peaks')) || {};
+      if (sum > (peaks[d]?.n || 0)) {
+        peaks[d] = { n: sum, at: Date.now() };
+        for (const k of Object.keys(peaks).sort().slice(0, -90)) delete peaks[k];
+        await this.ctx.storage.put('peaks', peaks);
+      }
+      const best = (await this.ctx.storage.get('best')) || { n: 0 };
+      if (sum > best.n) await this.ctx.storage.put('best', { n: sum, at: Date.now() });
+      return Response.json({ ok: true });
+    }
     const s = (await this.ctx.storage.get('s')) || { total: 0, days: {} };
     if (url.pathname === '/visit') {
       const d = kstDay();
@@ -197,9 +282,23 @@ export class Stats extends DurableObject {
       const keys = Object.keys(s.days).sort();
       for (const k of keys.slice(0, Math.max(0, keys.length - 90))) delete s.days[k];
       await this.ctx.storage.put('s', s);
+      // 시간대별 방문 (한국 시각 0~23시, 날짜마다 24칸, 최근 30일)
+      const hours = (await this.ctx.storage.get('hours')) || {};
+      (hours[d] = hours[d] || Array(24).fill(0))[new Date(Date.now() + 9 * 3600e3).getUTCHours()]++;
+      for (const k of Object.keys(hours).sort().slice(0, -30)) delete hours[k];
+      await this.ctx.storage.put('hours', hours);
       return Response.json({ ok: true });
     }
-    return Response.json({ total: s.total, today: s.days[kstDay()] || 0, days: s.days });
+    const K = ['hours', 'peaks', 'best', 'joins', 'staySec', 'stayN'];
+    const v = Object.fromEntries((await Promise.all(K.map((k) => this.ctx.storage.get(k)))).map((x, i) => [K[i], x]));
+    return Response.json({ total: s.total, today: s.days[kstDay()] || 0, days: s.days, hours: v.hours || {}, peaks: v.peaks || {}, best: v.best || { n: 0 }, joins: v.joins || {}, staySec: v.staySec || {}, stayN: v.stayN || {} });
+  }
+  // 날짜별 숫자 하나 올리기 (최근 90일만)
+  async bump(key, day, by) {
+    const m = (await this.ctx.storage.get(key)) || {};
+    m[day] = (m[day] || 0) + by;
+    for (const k of Object.keys(m).sort().slice(0, -90)) delete m[k];
+    await this.ctx.storage.put(key, m);
   }
 }
 
@@ -216,6 +315,11 @@ export class Room extends DurableObject {
   async fetch(req) {
     const url = new URL(req.url);
     if (url.pathname === '/count') return Response.json({ n: this.members().length });
+    // 관리자 현황용: 인원 · 책상에 앉은 분 · 소파 · 서서 돌아다니는 분
+    if (url.pathname === '/live') {
+      const ms = this.members(), st = (m) => m.a.st || {};
+      return Response.json({ n: ms.length, desk: ms.filter((m) => st(m).sit).length, sofa: ms.filter((m) => !st(m).sit && st(m).idle).length, walk: ms.filter((m) => !st(m).sit && !st(m).idle).length });
+    }
     if (req.headers.get('Upgrade') !== 'websocket') return new Response('expected websocket', { status: 426 });
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
@@ -232,9 +336,11 @@ export class Room extends DurableObject {
     let seat = Number.isInteger(want) && want >= 0 && want < CAP && !taken.has(want) ? want : -1;
     if (seat < 0) for (let i = 0; i < CAP; i++) if (!taken.has(i)) { seat = i; break; }
     const id = crypto.randomUUID().slice(0, 8);
-    server.serializeAttachment({ id, seat, st: null, pf: null, n: 0, w: Date.now() });
+    server.serializeAttachment({ id, seat, st: null, pf: null, n: 0, w: Date.now(), t0: Date.now(), room: url.searchParams.get('room') || '' });
     const peers = others.filter((m) => m.a.pf).map((m) => ({ id: m.a.id, seat: m.a.seat, st: m.a.st, pf: m.a.pf }));
     server.send(JSON.stringify({ t: 'hello', id, seat, peers }));
+    this.tally({ join: true });
+    this.reportPeak(url.searchParams.get('room') || '', others.length + 1);
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -287,7 +393,12 @@ export class Room extends DurableObject {
     ws.serializeAttachment(null);
     if (a?.pf) this.broadcast({ t: 'leave', id: a.id }, ws);
     try { ws.close(code === 1005 ? 1000 : code, 'bye'); } catch {}
+    if (a?.t0) { this.tally({ stay: (Date.now() - a.t0) / 1000 }); this.reportPeak(a.room, this.members().length); }
   }
+
+  // 방문 수 저장소에 입장 · 머문 시간 · 동시접속을 알려요 (응답은 기다리지 않아요)
+  tally(body) { this.ctx.waitUntil?.(this.env.STATS.get(this.env.STATS.idFromName('stats')).fetch('https://stats/tally', { method: 'POST', body: JSON.stringify(body) }).catch(() => {})); }
+  reportPeak(room, n) { if (room) this.ctx.waitUntil?.(this.env.STATS.get(this.env.STATS.idFromName('stats')).fetch('https://stats/peak', { method: 'POST', body: JSON.stringify({ room, n }) }).catch(() => {})); }
 
   webSocketError(ws) { this.webSocketClose(ws, 1011); }
 

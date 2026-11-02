@@ -2229,7 +2229,8 @@ async function boot() {
   frame();
   // 사무실이 다 지어지면 로딩 화면 뒤로 사무실이 보여요
   requestAnimationFrame(() => $('#loading').classList.add('scene'));
-  if (RELAY_URL && !Q.has('relay') && !Q.has('demo')) fetch(`${RELAY_URL}/visit`, { method: 'POST' }).catch(() => {});
+  // 방문: 기기마다 하루 한 번 숫자만 세요 (누가 왔는지는 남기지 않아요)
+  if (RELAY_URL && !Q.has('relay') && !Q.has('demo') && store.get('visited', '') !== dayKey(new Date())) fetch(`${RELAY_URL}/visit`, { method: 'POST' }).then(() => store.set('visited', dayKey(new Date()))).catch(() => {});
   // 로딩 화면의 글을 읽을 수 있게 조금은 보여 줘요
   const wait = Q.has('fast') ? 0 : 3200;
   await new Promise((r) => setTimeout(r, wait));

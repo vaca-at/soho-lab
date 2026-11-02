@@ -8,7 +8,7 @@ import { findBad } from '../js/badwords.js';
 const CAP = 20;
 const FLOORS = 10;
 const ROOM_RE = /^floor-([1-9]|10)$/;
-const ORIGINS = ['https://soho-lab.site', 'https://www.soho-lab.site', 'https://vaca-at.github.io', 'http://127.0.0.1:8765', 'http://localhost:8765'];
+const ORIGINS = ['https://soho-lab.site', 'https://www.soho-lab.site', 'https://vaca-at.github.io', 'https://moontr.site', 'http://127.0.0.1:8765', 'http://localhost:8765'];   // moontr.site = 관리자 허브
 
 function cors(req) {
   const o = req.headers.get('Origin');
@@ -93,6 +93,15 @@ export default {
       if (!env.ADMIN_PASSWORD || !(await same(String(body.password || '').trim(), env.ADMIN_PASSWORD.trim()))) return json(req, { error: 'unauthorized' }, 401);
       const exp = Date.now() + 30 * 24 * 3600 * 1000;
       return json(req, { token: `${exp}.${await sign(String(exp), env.ADMIN_PASSWORD.trim())}`, exp });
+    }
+    // 관리자 허브(moontr.site)가 읽는 방문 숫자: 날짜별 방문 · 시간대 · 입장 · 머문 시간 · 동시접속 최고 · 지금 인원
+    // 모두 '몇 번 · 몇 명' 숫자뿐이라 로그인 없이 내줘요 (누가 왔는지 · 연등 글 · 신고는 들어 있지 않아요)
+    if (url.pathname === '/public/visits') {
+      const s = await env.STATS.get(env.STATS.idFromName('stats')).fetch('https://stats/read').then((r) => r.json());
+      const rooms = await Promise.all(Array.from({ length: FLOORS }, (_, i) => env.ROOMS.get(env.ROOMS.idFromName(`floor-${i + 1}`)).fetch('https://room/live').then((r) => r.json()).then((j) => j.n || 0).catch(() => 0)));
+      const online = rooms.reduce((a, b) => a + b, 0);
+      return json(req, { total: s.total || 0, today: s.today || 0, days: s.days || {}, hours: s.hours || {}, joins: s.joins || {}, staySec: s.staySec || {}, stayN: s.stayN || {},
+        peaks: s.peaks || {}, best: s.best || { n: 0 }, wishDays: s.wishDays || {}, wishTotal: s.wishTotal || 0, online, rooms });
     }
     // 관리자 구글 로그인: Firebase 구글 로그인 증표를 검사해서, 허락된 이메일이면 30일 입장권
     if (url.pathname === '/admin/google' && req.method === 'POST') {

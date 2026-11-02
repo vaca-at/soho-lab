@@ -51,6 +51,38 @@ export class Sound {
     this.timer = setInterval(() => this.tick(), 200);
     return true;
   }
+  get live() { return !!this.ctx && this.ctx.state === 'running'; }
+  // 정각 종: 맑은 벨 두 번 (띵 — 동)
+  chime() {
+    if (!this.live) return;
+    const c = this.ctx, t0 = c.currentTime + 0.05;
+    [[1318.5, 0], [987.8, 0.55]].forEach(([f, dt]) => {
+      for (const [m, v] of [[1, 0.16], [2.76, 0.05], [5.4, 0.02]]) {
+        const o = c.createOscillator(), g = c.createGain();
+        o.frequency.value = f * m; g.gain.setValueAtTime(0, t0 + dt);
+        g.gain.linearRampToValueAtTime(v, t0 + dt + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + 2.6 / m);
+        o.connect(g); g.connect(this.out); this.verbIn && g.connect(this.verbIn);
+        o.start(t0 + dt); o.stop(t0 + dt + 2.8);
+      }
+    });
+  }
+  // 폭죽: 슝 — 펑 (지글지글)
+  pop(delay = 0.8) {
+    if (!this.live) return;
+    const c = this.ctx, t = c.currentTime;
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = 'triangle'; o.frequency.setValueAtTime(500, t); o.frequency.exponentialRampToValueAtTime(1800, t + delay);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.04, t + 0.05); g.gain.linearRampToValueAtTime(0, t + delay);
+    o.connect(g).connect(this.out); o.start(t); o.stop(t + delay + 0.05);
+    const s = c.createBufferSource(), f = c.createBiquadFilter(), n = c.createGain();
+    s.buffer = this.brown; f.type = 'lowpass'; f.frequency.value = 900;
+    n.gain.setValueAtTime(0, t + delay); n.gain.linearRampToValueAtTime(0.9, t + delay + 0.01); n.gain.exponentialRampToValueAtTime(0.001, t + delay + 0.9);
+    s.connect(f).connect(n).connect(this.out); s.start(t + delay); s.stop(t + delay + 1);
+    const cr = c.createBufferSource(), hf = c.createBiquadFilter(), cg = c.createGain();
+    cr.buffer = this.white; hf.type = 'highpass'; hf.frequency.value = 5000;
+    cg.gain.setValueAtTime(0, t + delay + 0.1); cg.gain.linearRampToValueAtTime(0.06, t + delay + 0.2); cg.gain.exponentialRampToValueAtTime(0.001, t + delay + 1.8);
+    cr.connect(hf).connect(cg).connect(this.out); cr.start(t + delay + 0.1); cr.stop(t + delay + 1.9);
+  }
   impulse(sec, decay) {
     const c = this.ctx, n = (c.sampleRate * sec) | 0, b = c.createBuffer(2, n, c.sampleRate);
     for (let ch = 0; ch < 2; ch++) { const d = b.getChannelData(ch); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n) ** decay; }

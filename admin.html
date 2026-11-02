@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>소호랩 신고함</title>
+<style>
+  :root { color-scheme: dark; --bg: #14161c; --card: #1b1f2a; --line: rgba(255,255,255,.1); --text: #f1eee8; --soft: #a7adbd; --amber: #ffb35c; --red: #f0716a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 60px; }
+  h1 { font-size: 22px; margin: 0 0 16px; }
+  form { display: flex; gap: 8px; margin-bottom: 18px; }
+  input { flex: 1; min-width: 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: #0d0f14; color: var(--text); font: inherit; }
+  button { padding: 10px 14px; border-radius: 10px; border: 0; background: var(--amber); color: #2a1a05; font: inherit; font-weight: 700; cursor: pointer; }
+  button.del { background: transparent; color: var(--red); border: 1px solid var(--red); font-weight: 400; padding: 6px 10px; }
+  .r { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; display: grid; gap: 8px; }
+  .r header { display: flex; justify-content: space-between; gap: 8px; color: var(--soft); font-size: 13px; }
+  .r p { margin: 0; white-space: pre-wrap; word-break: break-word; }
+  .r img { max-width: 100%; border-radius: 10px; border: 1px solid var(--line); }
+  .r small { color: var(--soft); font-size: 12px; }
+  #msg { color: var(--soft); }
+</style>
+</head>
+<body>
+<main>
+  <h1>🚨 소호랩 신고함</h1>
+  <form id="f"><input id="pw" type="password" placeholder="관리자 비밀번호" autocomplete="current-password"><button>열기</button></form>
+  <p id="msg"></p>
+  <div id="list"></div>
+</main>
+<script type="module">
+import { RELAY_URL } from './js/data.js';
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+let pw = sessionStorage.getItem('soho.admin') || '';
+async function load() {
+  $('#msg').textContent = '불러오는 중…';
+  const r = await fetch(`${RELAY_URL}/admin/reports`, { headers: { Authorization: `Bearer ${pw}` } }).catch(() => null);
+  if (!r || r.status === 401) { $('#msg').textContent = r ? '비밀번호가 맞지 않아요' : '서버에 연결하지 못했어요'; $('#list').innerHTML = ''; return; }
+  sessionStorage.setItem('soho.admin', pw);
+  const { reports = [] } = await r.json();
+  $('#msg').textContent = reports.length ? `신고 ${reports.length}건 (최근 것부터)` : '신고가 없어요 🎉';
+  $('#list').innerHTML = reports.map((x) => `<article class="r">
+    <header><span>${new Date(x.at).toLocaleString('ko-KR')} · ${x.ctx?.floor || '-'}층 · 신고한 분 ${esc(x.ctx?.reporter || '-')} (${x.ctx?.seat || '-'}번)</span><button class="del" data-id="${esc(x.id)}">지우기</button></header>
+    ${x.text ? `<p>${esc(x.text)}</p>` : ''}
+    ${x.img && /^data:image\//.test(x.img) ? `<img src="${esc(x.img)}" alt="담긴 사진">` : ''}
+    ${x.ctx?.people?.length ? `<small>같은 층: ${esc(x.ctx.people.join(', '))}</small>` : ''}
+  </article>`).join('');
+}
+$('#f').onsubmit = (e) => { e.preventDefault(); pw = $('#pw').value.trim(); load(); };
+$('#list').onclick = async (e) => {
+  const b = e.target.closest('.del');
+  if (!b || !confirm('이 신고를 지울까요?')) return;
+  await fetch(`${RELAY_URL}/admin/report-delete`, { method: 'POST', headers: { Authorization: `Bearer ${pw}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ id: b.dataset.id }) });
+  load();
+};
+if (pw) load();
+</script>
+</body>
+</html>

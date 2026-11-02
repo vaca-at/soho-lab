@@ -51,6 +51,7 @@ export const PRESETS = {
   knitdev: { hair: '#2a2220', top: '#4e8a4a', inner: '#4e8a4a', bottom: '#2f3a4a', extra: 'knit' },
   hoodie: { hair: '#3a2a20', top: '#3c9a6a', inner: '#3c9a6a', bottom: '#2c2f36', extra: 'hood' },
   beige: { hair: '#6b4128', top: '#d9c3a0', inner: '#1d1d1f', bottom: '#2a2a2c', extra: 'jacket' },
+  sporty: { hair: '#231c1a', top: '#7d6fc4', inner: '#7d6fc4', bottom: '#2c2f36' },
 };
 
 // 캐릭터마다 [여자, 남자] 머리 모양
@@ -63,6 +64,7 @@ const HAIR = {
   knitdev: ['pigtails', 'curly'],
   hoodie: ['pixie', 'twoblock'],
   beige: ['longstraight', 'manbun'],
+  sporty: ['hipony', 'hipony'],
 };
 
 // 머리 모양 만들기. 얼굴은 한 변 S 인 네모, hy = 정수리 높이, fz = 얼굴 앞면
@@ -83,12 +85,28 @@ function buildHair(head, style, H, S, hy, fz) {
       box(head, H, W * 0.7, 0.1, 0.08, -0.08, hy - 0.04, fz + 0.02);
       box(head, H, 0.22, 0.06, 0.3, -0.12, hy + 0.08, 0.05);
       break;
-    case 'lowpony': // 낮게 묶은 포니테일
-      top(); backHair(0.3); sides(0.24);
+    case 'lowpony': // 낮게 묶은 포니테일: 뒷머리가 목덜미까지 덮고, 그 아래에서 묶어 늘어뜨려요
+      top(); backHair(0.5, 0.11); sides(0.34);
       box(head, H, W * 0.6, 0.09, 0.08, 0.09, hy - 0.04, fz + 0.02);
-      box(head, tie, 0.1, 0.08, 0.08, 0, hy - 0.3, back - 0.07);
-      box(head, H, 0.14, 0.4, 0.12, 0, hy - 0.54, back - 0.08);
+      box(head, H, W - 0.08, 0.16, 0.06, 0, hy - 0.34, back - 0.08);   // 모아 묶은 뭉치
+      box(head, tie, 0.12, 0.07, 0.1, 0, hy - 0.44, back - 0.1);
+      box(head, H, 0.15, 0.36, 0.12, 0, hy - 0.64, back - 0.1);
+      box(head, H, 0.1, 0.08, 0.09, 0, hy - 0.86, back - 0.1);
       break;
+    case 'hipony': // 높이 묶은 포니테일: 정수리 뒤에서 묶어 등 쪽으로 찰랑
+      top(); backHair(0.5, 0.11); sides(0.32);
+      { const b = box(head, H, W * 0.72, 0.12, 0.08, 0.07, hy - 0.06, fz + 0.02); b.rotation.z = -0.12; }
+    {
+      // 꼬리는 살짝 밝은 색이라 뒷머리 위에서도 보여요. 묶은 곳은 정수리보다 조금 높이 솟아 옆·뒤 실루엣에 드러나요
+      const T = '#' + new THREE.Color(H).offsetHSL(0, 0, 0.035).getHexString();
+      box(head, H, W - 0.1, 0.14, 0.14, 0, hy + 0.04, back + 0.02);    // 뒤로 끌어 모은 결
+      box(head, T, 0.2, 0.16, 0.18, 0, hy + 0.12, back - 0.08);        // 솟은 뿌리
+      box(head, tie, 0.16, 0.08, 0.14, 0, hy + 0.04, back - 0.12);
+      box(head, T, 0.18, 0.18, 0.15, 0, hy - 0.06, back - 0.2);
+      box(head, T, 0.16, 0.34, 0.13, 0, hy - 0.3, back - 0.22);
+      box(head, T, 0.11, 0.12, 0.1, 0, hy - 0.52, back - 0.2);
+      break;
+    }
     case 'crew': // 짧은 스포츠머리
       top(0.08); backHair(0.18, 0.06); sides(0.12, 0.05);
       box(head, H, W, 0.04, 0.05, 0, hy - 0.02, fz + 0.01);
@@ -181,7 +199,7 @@ export function buildBlock(av, body, look, outfit, skinColor) {
   const P = PRESETS[outfit.preset || look.type] || H;
   const own = outfit.style === 'own';
   const top = own ? P.top : outfit.top;
-  const inner = own ? P.inner : outfit.top;
+  const inner = own ? P.inner : outfit.inner || outfit.top;
   const bottom = own ? P.bottom : outfit.bottom;
   const female = look.gender !== 'm';
   const legY = 0.46;
@@ -190,7 +208,7 @@ export function buildBlock(av, body, look, outfit, skinColor) {
     const g = new THREE.Group();
     g.position.set(0.12 * side, legY, 0);
     box(g, bottom, 0.2, 0.42, 0.22, 0, -0.21, 0);
-    box(g, own ? '#2a2420' : '#f2eee6', 0.21, 0.08, 0.27, 0, -0.42, 0.03);
+    box(g, outfit.shoes || (own ? '#2a2420' : '#f2eee6'), 0.21, 0.08, 0.27, 0, -0.42, 0.03);
     body.add(g);
     return g;
   };
@@ -236,6 +254,14 @@ export function buildBlock(av, body, look, outfit, skinColor) {
     }
     box(hips, '#3b2766', 0.56, 0.86, 0.04, 0, 0.12, -0.17);
   }
+  // 소호랩 옷 스타일 덧붙이기: 후드 · 재킷 앞판 · 넥타이 · 깃
+  for (const x of outfit.extras || []) {
+    if (x === 'hood') { box(hips, top, 0.44, 0.16, 0.12, 0, 0.5, -0.18); for (const s of [1, -1]) box(hips, '#f2f2f2', 0.02, 0.18, 0.02, 0.06 * s, 0.4, 0.15); }
+    if (x === 'jacket') for (const s of [1, -1]) box(hips, top, 0.17, 0.56, 0.02, 0.165 * s, 0.28, 0.145);
+    if (x === 'tie') box(hips, outfit.tie, 0.07, 0.34, 0.02, 0, 0.36, 0.16);
+    if (x === 'collar') box(hips, inner, 0.24, 0.06, 0.02, 0, 0.53, 0.15);
+    if (x === 'shirtcollar') for (const s of [1, -1]) { const k = box(hips, outfit.decoC, 0.13, 0.05, 0.02, 0.07 * s, 0.53, 0.152); k.rotation.z = -0.35 * s; }
+  }
   if (own) {
     if (P.extra === 'tie') box(hips, P.tie, 0.07, 0.34, 0.02, 0, 0.36, 0.16);
     if (P.extra === 'collar') { box(hips, P.inner, 0.24, 0.06, 0.02, 0, 0.53, 0.15); }
@@ -276,7 +302,7 @@ export function buildBlock(av, body, look, outfit, skinColor) {
 
   // 머리카락: 캐릭터 · 남녀마다 다른 모양 (HAIR 표)
   const hy = S + 0.02;
-  buildHair(head, HAIR[look.type]?.[female ? 0 : 1] || (female ? 'wave' : 'short'), H.hair, S, hy, fz);
+  buildHair(head, HAIR[look.type]?.[female ? 0 : 1] || (female ? 'wave' : 'short'), look.hairC || H.hair, S, hy, fz);
   if (own && P.extra === 'glasses') {
     const gm = '#1d1a18';
     box(head, gm, 0.16, 0.13, 0.015, 0.11, eyeY, fz + 0.02, { transparent: true, opacity: 0.9 });
@@ -321,7 +347,6 @@ export function buildBlock(av, body, look, outfit, skinColor) {
     cone.rotation.y = Math.PI / 4; cone.rotation.z = -0.15; cone.position.set(-0.03, hy + 0.3, 0); cone.castShadow = true; head.add(cone);
     box(head, '#e8873a', S - 0.06, 0.06, S - 0.06, 0, hy + 0.1, 0);
   }
-  if (acc === 'beanie') { box(head, '#b23a3a', S + 0.1, 0.2, S + 0.1, 0, hy + 0.06, 0); box(head, '#f4efe6', 0.12, 0.1, 0.12, 0, hy + 0.22, 0); }
   if (acc === 'roundglasses' || acc === 'sunglasses') {
     const dark = acc === 'sunglasses';
     for (const sx of [1, -1]) {
@@ -342,10 +367,20 @@ export function buildBlock(av, body, look, outfit, skinColor) {
     }
   }
   if (acc === 'bowtie') { for (const sx of [1, -1]) { const w = box(hips, '#c23b3b', 0.1, 0.08, 0.03, sx * 0.055, 0.53, 0.16); w.rotation.z = sx * 0.25; } box(hips, '#8f2a2a', 0.04, 0.05, 0.035, 0, 0.53, 0.165); }
-  if (acc === 'lotuspin') {   // 연꽃 핀: 귀 위 옆머리에 크게, 분홍 꽃잎 여섯 장 + 노란 꽃술
-    const pin = new THREE.Group(); pin.position.set(0.27, hy - 0.02, 0.2); pin.rotation.set(0, 0.7, 0); pin.scale.setScalar(1.5); head.add(pin);
-    for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; const pt = box(pin, i % 2 ? '#f48fb0' : '#f9bcd0', 0.07, 0.11, 0.03, Math.sin(a) * 0.06, Math.cos(a) * 0.06, 0); pt.rotation.z = -a; }
-    box(pin, '#f3d16a', 0.06, 0.06, 0.05, 0, 0, 0.02); box(pin, '#6aa05a', 0.1, 0.04, 0.02, 0.05, -0.09, -0.01).rotation.z = 0.5;
+  if (acc === 'lotuspin') {   // 꽃 핀: 귀 위 옆머리에 납작하게 붙여요 (앞에서도 살짝 보이게 조금 앞으로 돌려서)
+    const pin = new THREE.Group(); pin.position.set(S / 2 + 0.105, hy - 0.1, 0.1); pin.rotation.set(0, Math.PI / 2 - 0.35, 0); head.add(pin);
+    for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; const pt = box(pin, i % 2 ? '#f48fb0' : '#f9bcd0', 0.07, 0.09, 0.02, Math.sin(a) * 0.05, Math.cos(a) * 0.05, 0); pt.rotation.z = -a; }
+    box(pin, '#f3d16a', 0.05, 0.05, 0.03, 0, 0, 0.01);
+  }
+  if (acc === 'applewatch') {   // 애플워치: 왼쪽 손목, 바깥쪽에 까만 화면과 초록 링
+    box(av.armL, '#3a3d44', 0.16, 0.06, 0.2, 0, -0.33, 0);
+    box(av.armL, '#1a1b1f', 0.03, 0.12, 0.11, 0.085, -0.33, 0);
+    box(av.armL, '#3fd27a', 0.01, 0.05, 0.05, 0.102, -0.33, 0, { emissive: '#1f8a4a' });
+  }
+  if (acc === 'mask') {   // 마스크: 코 아래를 덮는 하얀 마스크와 귀걸이 끈
+    box(head, '#f4f4f2', 0.38, 0.17, 0.04, 0, eyeY - 0.15, fz + 0.02);
+    box(head, '#e2e2de', 0.36, 0.012, 0.045, 0, eyeY - 0.15, fz + 0.022);
+    for (const s of [1, -1]) box(head, '#f4f4f2', 0.02, 0.02, 0.26, (S / 2 + 0.01) * s, eyeY - 0.08, fz - 0.12);
   }
   if (acc === 'backpack' || (!own && outfit.style === 'hiking')) { box(hips, '#8a8d8a', 0.38, 0.42, 0.18, 0, 0.3, -0.23); box(hips, '#6f726f', 0.3, 0.12, 0.04, 0, 0.18, -0.33); }
 }
@@ -358,7 +393,7 @@ export const PETS = [
   { id: 'russianblue', name: '러시안 블루', cap: '청회색 털에 초록 눈' },
   { id: 'hamster', name: '햄스터', cap: '볼 빵빵' },
   { id: 'bunny', name: '토끼', cap: '귀가 쫑긋' },
-  { id: 'coffee', name: '커피잔', cap: '김이 모락모락' },
+  { id: 'coffee', name: '커피잔', cap: '김이 모락모락', size: 0.7 },
   { id: 'icecoffee', name: '아이스커피', cap: '얼음 가득, 초록 빨대' },
   { id: 'book', name: '책 친구', cap: '책장을 펄럭' },
   { id: 'ai', name: 'AI 짝꿍', cap: '화면 얼굴 로봇', hover: true },

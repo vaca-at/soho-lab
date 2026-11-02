@@ -58,7 +58,7 @@ export default {
       return env.ROOMS.get(env.ROOMS.idFromName(room)).fetch(req);
     }
     if (req.method === 'OPTIONS') {
-      return new Response(null, { headers: { ...cors(req), 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Max-Age': '86400' } });
+      return new Response(null, { headers: { ...cors(req), 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Max-Age': '86400' } });
     }
     if (url.pathname === '/counts') {
       const n = Math.min(FLOORS, Math.max(1, +url.searchParams.get('n') || FLOORS));
@@ -71,9 +71,50 @@ export default {
       await env.STATS.get(env.STATS.idFromName('stats')).fetch('https://stats/visit', { method: 'POST' });
       return json(req, { ok: true });
     }
+    // 신고 보내기: 누구나. 글 1000자, 사진 1장(약 1.3MB까지). 같은 사람은 한 시간에 5건까지
+    if (url.pathname === '/report' && req.method === 'POST') {
+      const origin = req.headers.get('Origin');
+      if (origin && !ORIGINS.includes(origin)) return json(req, { error: 'forbidden' }, 403);
+      const body = await req.json().catch(() => null);
+      if (!body) return json(req, { error: 'bad' }, 400);
+      const text = str(body.text, 1000).trim();
+      const img = typeof body.img === 'string' && /^data:image\/(jpeg|png|webp);base64,/.test(body.img) && body.img.length < 1_400_000 ? body.img : null;
+      if (!text && !img) return json(req, { error: 'empty' }, 400);
+      const c = body.ctx || {};
+      const ctx = { floor: num(c.floor, 0, FLOORS), seat: num(c.seat, 0, CAP), reporter: str(c.reporter, 12), people: Array.isArray(c.people) ? c.people.slice(0, 30).map((n) => str(n, 12)) : [], ua: str(req.headers.get('User-Agent'), 160) };
+      const who = (await sign(req.headers.get('CF-Connecting-IP') || '', env.ADMIN_PASSWORD || 'soho-salt')).slice(0, 16);
+      const r = await env.STATS.get(env.STATS.idFromName('stats')).fetch('https://stats/report/add', { method: 'POST', body: JSON.stringify({ text, img, ctx, who }) });
+      if (r.status === 429) return json(req, { error: 'too many' }, 429);
+      return json(req, { ok: true });
+    }
+    // 관리자: 신고 목록 보기 · 지우기 (비밀번호는 npx wrangler secret put ADMIN_PASSWORD)
+    if (url.pathname === '/admin/reports' || url.pathname === '/admin/report-delete') {
+      const auth = (req.headers.get('Authorization') || '').replace(/^Bearer /, '').trim();
+      if (!env.ADMIN_PASSWORD || !(await same(auth, env.ADMIN_PASSWORD.trim()))) return json(req, { error: 'unauthorized' }, 401);
+      const stub = env.STATS.get(env.STATS.idFromName('stats'));
+      if (url.pathname === '/admin/reports') return json(req, await stub.fetch('https://stats/report/list').then((r) => r.json()));
+      const { id } = await req.json().catch(() => ({}));
+      await stub.fetch('https://stats/report/delete', { method: 'POST', body: JSON.stringify({ id: String(id || '') }) });
+      return json(req, { ok: true });
+    }
     return json(req, { ok: true, name: 'soho-lab-rooms' });
   },
 };
+
+// 비밀번호 비교: 해시끼리 비교해서 글자 수나 앞부분으로 알아낼 수 없게
+async function same(a, b) {
+  const h = async (s) => new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)));
+  const [x, y] = await Promise.all([h(a), h(b)]);
+  let d = 0;
+  for (let i = 0; i < x.length; i++) d |= x[i] ^ y[i];
+  return d === 0;
+}
+// 신고한 사람 구별용: 접속 주소를 알아볼 수 없게 바꾼 값
+async function sign(msg, secret) {
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const mac = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(msg)));
+  return [...mac].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 // ───────── 들어온 값 다듬기 ─────────
 const str = (s, n) => String(s ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, n);
@@ -95,7 +136,9 @@ function cleanProfile(d) {
     type: ID.test(lk.type) ? lk.type : 'hoodie',
     gender: lk.gender === 'f' ? 'f' : 'm',
     skin: COLOR.test(lk.skin) ? lk.skin : '#f4c9a6',
-    outfit: ID.test(lk.outfit) ? lk.outfit : 'wear_hoodie',
+    outfit: ID.test(lk.outfit) ? lk.outfit : 'hoodie',
+    oc: ID.test(lk.oc) ? lk.oc : '',
+    hc: ID.test(lk.hc) ? lk.hc : '',
     acc: ID.test(lk.acc) ? lk.acc : 'none',
     pet: ID.test(lk.pet) ? lk.pet : 'none',
   };
@@ -123,6 +166,29 @@ const kstDay = () => new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(
 export class Stats extends DurableObject {
   async fetch(req) {
     const url = new URL(req.url);
+    // 신고: 한 건씩 'r:<시각>' 열쇠로 저장, 최근 200건만
+    if (url.pathname === '/report/add') {
+      const r = await req.json();
+      const rl = (await this.ctx.storage.get(`rl:${r.who}`)) || [];
+      const recent = rl.filter((t) => Date.now() - t < 3600e3);
+      if (recent.length >= 5) return Response.json({ error: 'too many' }, { status: 429 });
+      await this.ctx.storage.put(`rl:${r.who}`, [...recent, Date.now()]);
+      const id = `r:${String(Date.now()).padStart(15, '0')}`;
+      await this.ctx.storage.put(id, { ...r, id, at: Date.now() });
+      const all = await this.ctx.storage.list({ prefix: 'r:', reverse: true });
+      const old = [...all.keys()].slice(200);
+      if (old.length) await this.ctx.storage.delete(old);
+      return Response.json({ ok: true });
+    }
+    if (url.pathname === '/report/list') {
+      const all = await this.ctx.storage.list({ prefix: 'r:', reverse: true, limit: 100 });
+      return Response.json({ reports: [...all.values()].map(({ who, ...x }) => x) });
+    }
+    if (url.pathname === '/report/delete') {
+      const { id } = await req.json();
+      if (/^r:\d{15}$/.test(id)) await this.ctx.storage.delete(id);
+      return Response.json({ ok: true });
+    }
     const s = (await this.ctx.storage.get('s')) || { total: 0, days: {} };
     if (url.pathname === '/visit') {
       const d = kstDay();
@@ -203,6 +269,14 @@ export class Room extends DurableObject {
       this.broadcast({ t: 'seat', id: a.id, d: want });
     } else if (m.t === 'act' && m.d && a.pf) {
       ws.serializeAttachment(a);
+      // 폭죽: 같은 층 모두의 천장에 터져요 (한 사람이 20초에 한 번)
+      if (m.d.fw) {
+        if (now - (a.fw || 0) < 20000) { ws.serializeAttachment(a); return; }
+        a.fw = now;
+        ws.serializeAttachment(a);
+        this.broadcast({ t: 'act', id: a.id, d: { fw: num(m.d.fw, 0.001, 1) } }, ws);
+        return;
+      }
       const d = m.d.m !== undefined ? { m: Math.max(0, Math.min(4, m.d.m | 0)) } : { a: ID.test(m.d.a) ? m.d.a : '' };
       this.broadcast({ t: 'act', id: a.id, d }, ws);
     } else ws.serializeAttachment(a);

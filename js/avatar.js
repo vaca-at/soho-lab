@@ -1,7 +1,7 @@
 // 캐릭터: 블록 사람 + 이름표 + 머리 위 메모 말풍선 + 동작(코딩·커피·기지개 …).
 // 관절(hips, head, 팔다리) 회전값으로 자세를 만든다. 캐릭터는 +z 방향을 바라본다.
 import * as THREE from 'three';
-import { OUTFITS, bodyOf } from './data.js';
+import { outfitOf, hairColorOf, bodyOf } from './data.js';
 import { buildBlock, buildPet, bakeBlock, applyBody, box } from './blocky.js';
 
 const matCache = new Map();
@@ -22,8 +22,8 @@ function canLabel(id, c, band) {
   if (id === 'can_cola') { g.beginPath(); g.moveTo(0, 70); g.bezierCurveTo(60, 40, 120, 100, 256, 60); g.lineTo(256, 80); g.bezierCurveTo(120, 120, 60, 60, 0, 90); g.fill(); }
   else if (id === 'can_cider') { g.fillStyle = '#f2e85a'; g.beginPath(); g.moveTo(0, 96); g.lineTo(256, 50); g.lineTo(256, 66); g.lineTo(0, 112); g.fill(); g.fillStyle = '#fff'; for (const [x, y, r] of [[40, 30, 7], [80, 20, 4], [120, 34, 9], [170, 22, 5], [210, 36, 6]]) { g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); } }
   else { g.fillRect(0, 18, 256, 6); g.fillRect(0, 104, 256, 6); }
-  g.fillStyle = id === 'can_beer' ? '#fff6dc' : '#fff'; g.font = '900 34px Arial Black, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText(id === 'can_beer' ? 'LAGER 0.0' : id === 'can_cola' ? 'COLA' : 'CIDER', 128, id === 'can_cola' ? 34 : 66);
+  g.fillStyle = '#fff'; g.font = '900 34px Arial Black, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(id === 'can_grape' ? 'GRAPE' : id === 'can_cola' ? 'COLA' : 'CIDER', 128, id === 'can_cola' ? 34 : 66);
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
   const m = new THREE.MeshStandardMaterial({ map: t, metalness: 0.35, roughness: 0.35 });
   canLabels.set(id, m);
@@ -137,7 +137,7 @@ function actionPose(action, t, base) {
       return mix(base, { aL: [-1.1, 0.25], aR: [-1.1 + Math.sin(t * 2) * 0.08, -0.25], head: 0.2 }, bump(t, 0, 0.4, 3.6, 4));
     case 'print': // 프린터 위 버튼을 톡톡, 종이를 집어요
       return mix(base, { aR: [-0.9 - Math.abs(Math.sin(t * 6)) * 0.25, -0.1], aL: [-0.6, 0.2], head: 0.3, hip: 0.12 }, bump(t, 0, 0.4, 3.6, 4));
-    case 'can_beer': case 'can_cola': case 'can_cider':
+    case 'can_grape': case 'can_cola': case 'can_cider':
     case 'drink': {
       const sip = bump(t, 0.5, 1.1, 2.6, 3.2);
       return mix(base, { aR: [-0.9 - sip * 1.0, -0.15 - sip * 0.25], head: -0.12 * sip }, bump(t, 0, 0.4, 3.2, 3.6));
@@ -261,7 +261,7 @@ export class Avatar {
   build(look) {
     if (this.body) this.group.remove(this.body);
     this.look = look;
-    const outfit = OUTFITS.find((o) => o.id === look.outfit) || OUTFITS[0];
+    const outfit = outfitOf(look);
     const body = new THREE.Group();
     this.body = body;
     this.group.add(body);
@@ -274,7 +274,7 @@ export class Avatar {
       this.petFresh = true;
     }
 
-    buildBlock(this, body, look, outfit, look.skin);
+    buildBlock(this, body, { ...look, hairC: hairColorOf(look) }, outfit, look.skin);
     // 체형: 키·등신·체격. 이름표와 말풍선도 키에 맞춰요
     const B = bodyOf(look);
     applyBody(this, B);
@@ -293,9 +293,9 @@ export class Avatar {
     mug.visible = false;
     this.armR.add(mug);
     this.mug = mug;
-    // 냉장고 음료 캔 (무알콜 맥주 · 콜라 · 사이다)
+    // 냉장고 음료 캔 (웰치스 포도 · 콜라 · 사이다)
     this.cans = {};
-    for (const [id, c, band] of [['can_beer', '#d9a43a', '#f2d27a'], ['can_cola', '#c8302a', '#f4f4f2'], ['can_cider', '#3fa85a', '#e8f6ec']]) {
+    for (const [id, c, band] of [['can_grape', '#6a2c8a', '#c9a8e0'], ['can_cola', '#c8302a', '#f4f4f2'], ['can_cider', '#3fa85a', '#e8f6ec']]) {
       const can = new THREE.Group();
       const body = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.2, 18), [canLabel(id, c, band), mat('#c9ccd2', { metalness: 0.7, roughness: 0.3 }), mat('#9aa0a8', { metalness: 0.7, roughness: 0.3 })]);
       body.castShadow = true;

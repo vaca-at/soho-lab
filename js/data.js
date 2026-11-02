@@ -12,7 +12,7 @@ export const SITE = 'https://soho-lab.site';
 export const FLOORS = 10; // 서버 = 층. 1층부터 10층까지
 export const SEATS = 20; // 층마다 책상 20개, 20명까지
 // 층마다 사무실 테마 (world.js 의 THEMES id). 1층부터 차례로
-export const FLOOR_THEMES = ['loft', 'white', 'neon', 'forest', 'nordic', 'hanok', 'space', 'cafe', 'library', 'beach'];
+export const FLOOR_THEMES = ['loft', 'class', 'neon', 'forest', 'nordic', 'hanok', 'space', 'cafe', 'library', 'beach'];
 export const MAX_MEMOS = 5; // 머리 위 메모 (첫 번째 메모가 '지금 하는 일'처럼 모니터 아래 줄에도 떠요)
 export const MAX_LINKS = 3; // 자랑하는 결과물
 export const MAX_ITEMS = 8; // 책상 위 소품 (6 m 책상)
@@ -32,7 +32,7 @@ export const BODIES = [
 ];
 export const bodyOf = (look) => BODIES.find((b) => b.id === look?.body) || BODIES[0];
 
-export const GENDERS = [{ id: 'f', name: '여자', cap: '여자 머리 8가지' }, { id: 'm', name: '남자', cap: '남자 머리 8가지' }];
+export const GENDERS = [{ id: 'f', name: '여자', cap: '여자 머리 9가지' }, { id: 'm', name: '남자', cap: '남자 머리 9가지' }];
 
 // 머리 스타일 (blocky.js 의 PRESETS · HAIR 와 짝). 머리 색도 여기서 정해져요
 export const CHAR_TYPES = [
@@ -44,34 +44,80 @@ export const CHAR_TYPES = [
   { id: 'knitdev', hairF: '양갈래', hairM: '곱슬', color: '까만 머리' },
   { id: 'hoodie', hairF: '숏컷', hairM: '투블럭', color: '짙은 갈색' },
   { id: 'beige', hairF: '긴 생머리', hairM: '묶은 머리', color: '갈색 머리' },
+  { id: 'sporty', hairF: '포니테일', hairM: '포니테일', color: '까만 머리' },
 ];
 export const hairName = (t, gender) => (gender === 'm' ? t.hairM : t.hairF);
-
-// 옷: 예전 '캐릭터' 8가지 차림(wear_…) + 사무실 · 편한 옷. 머리 스타일과 따로 골라서 조합해요
-// style 'own' + preset: 그 캐릭터 고유 차림. deco: 상의 무늬
-export const OUTFITS = [
-  { id: 'wear_hoodie', name: '초록 후드티', cap: '모자 달린 후드와 끈', style: 'own', preset: 'hoodie' },
-  { id: 'wear_appteacher', name: '초록 셔츠와 안경', cap: '동그란 안경', style: 'own', preset: 'appteacher' },
-  { id: 'wear_knitdev', name: '초록 줄무늬 니트', cap: '포근한 스웨터', style: 'own', preset: 'knitdev' },
-  { id: 'wear_beige', name: '베이지 재킷', cap: '검은 상의와 바지', style: 'own', preset: 'beige' },
-  { id: 'wear_moral', name: '남색 카디건', cap: '흰 깃이 보이는 차림', style: 'own', preset: 'moral' },
-  { id: 'wear_trainee', name: '파란 모자와 명찰', cap: '흰 셔츠에 목걸이 명찰', style: 'own', preset: 'trainee' },
-  { id: 'wear_planner', name: '베레모와 분홍 니트', cap: '빨간 베레모', style: 'own', preset: 'planner' },
-  { id: 'wear_tycoon', name: '검은 정장', cap: '빨간 넥타이', style: 'own', preset: 'tycoon' },
-  { id: 'mtm', name: '회색 맨투맨', cap: '편한 맨투맨에 조거 바지', top: '#9aa0a6', bottom: '#2f3540', style: 'plain' },
-  { id: 'flannel', name: '체크 셔츠', cap: '빨간 체크 남방', top: '#b8403a', bottom: '#2c3450', deco: 'check', decoC: '#6a2420', style: 'plain' },
-  { id: 'turtle', name: '검은 터틀넥', cap: '개발자 국룰', top: '#1f1f22', bottom: '#3a3c42', style: 'plain' },
-  { id: 'sky', name: '하늘 셔츠', cap: '단추 달린 하늘색 셔츠', top: '#a9c8e8', bottom: '#3a3f4a', deco: 'buttons', decoC: '#7a9cc0', style: 'plain' },
-  { id: 'cardigan', name: '도톰한 가디건', cap: '겨자색 가디건에 면바지', top: '#d9a441', bottom: '#cdbb9a', deco: 'buttons', decoC: '#6e4c30', style: 'plain' },
-  { id: 'track', name: '트레이닝복', cap: '흰 줄 세 개 운동복', top: '#2f6f62', bottom: '#2f6f62', deco: 'track', decoC: '#f4f4f2', style: 'plain' },
-  { id: 'windbreaker', name: '바람막이', cap: '주황 바람막이에 검은 바지', top: '#e2603d', bottom: '#2f3540', deco: 'track', decoC: '#2f3540', style: 'plain' },
-  { id: 'fleece', name: '플리스', cap: '복슬복슬 크림 플리스', top: '#efe6d2', bottom: '#5a6b52', deco: 'puffer', decoC: '#e2d8c0', style: 'plain' },
-  { id: 'puffer', name: '패딩 점퍼', cap: '퇴근길 남색 패딩', top: '#2f3e66', bottom: '#2a2a2c', deco: 'puffer', decoC: '#26345a', style: 'plain' },
-  { id: 'overalls', name: '청 멜빵바지', cap: '흰 티에 청 멜빵', top: '#f4f4f2', bottom: '#4a6fa5', deco: 'overalls', decoC: '#4a6fa5', style: 'plain' },
-  { id: 'pajama', name: '잠옷', cap: '분홍 줄무늬 잠옷 (재택 모드)', top: '#f3d6e0', bottom: '#f3d6e0', deco: 'stripes', decoC: '#e58fa6', style: 'plain' },
-  // 예전 값: 머리 스타일(type)에 딸린 차림. 저장된 모습을 불러올 때 wear_… 로 바꿔요
-  { id: 'own', name: '캐릭터 기본 옷', style: 'own', hidden: true },
+// 머리색: 'base' 는 머리 스타일마다 정해진 색 그대로
+export const HAIR_COLORS = [
+  { id: 'base', name: '기본', c: '' },
+  { id: 'black', name: '검정', c: '#1c1816' },
+  { id: 'darkbrown', name: '짙은 갈색', c: '#3a2618' },
+  { id: 'brown', name: '갈색', c: '#6b4128' },
+  { id: 'light', name: '밝은 갈색', c: '#a0703f' },
+  { id: 'blonde', name: '금발', c: '#d9b56a' },
+  { id: 'ash', name: '애쉬 그레이', c: '#8a8d94' },
+  { id: 'white', name: '흰머리', c: '#e6e3dc' },
+  { id: 'red', name: '빨강', c: '#a8382e' },
+  { id: 'pink', name: '분홍', c: '#e58fa6' },
+  { id: 'purple', name: '보라', c: '#7d5fc4' },
+  { id: 'blue', name: '파랑', c: '#3f6ad8' },
+  { id: 'mint', name: '민트', c: '#5fbfa0' },
 ];
+export const hairColorOf = (look) => HAIR_COLORS.find((h) => h.id === look.hc)?.c || '';
+
+// 옷: 스타일 8가지를 고른 뒤 색을 골라요 (look.outfit = 스타일, look.oc = 색)
+export const OUTFIT_COLORS = [
+  { id: 'black', name: '검정', c: '#26272c' },
+  { id: 'gray', name: '회색', c: '#9aa0a6' },
+  { id: 'white', name: '흰색', c: '#eeece6' },
+  { id: 'beige', name: '베이지', c: '#d9c3a0' },
+  { id: 'brown', name: '갈색', c: '#7a5236' },
+  { id: 'mustard', name: '겨자', c: '#d9a441' },
+  { id: 'red', name: '빨강', c: '#b8403a' },
+  { id: 'pink', name: '분홍', c: '#e9b8c4' },
+  { id: 'purple', name: '보라', c: '#7d6fc4' },
+  { id: 'sky', name: '하늘', c: '#a9c8e8' },
+  { id: 'denim', name: '청', c: '#4a6fa5' },
+  { id: 'navy', name: '남색', c: '#2f3e66' },
+  { id: 'green', name: '초록', c: '#3c9a6a' },
+  { id: 'khaki', name: '카키', c: '#6f7550' },
+];
+export const OUTFITS = [
+  { id: 'hoodie', name: '후드티', cap: '모자와 끈', def: 'green' },
+  { id: 'jacket', name: '재킷', cap: '안에 검은 티', def: 'beige' },
+  { id: 'cardigan', name: '가디건', cap: '흰 깃과 단추', def: 'navy' },
+  { id: 'suit', name: '정장', cap: '흰 셔츠에 넥타이', def: 'black' },
+  { id: 'mtm', name: '맨투맨', cap: '편한 조거 바지', def: 'gray' },
+  { id: 'shirt', name: '셔츠', cap: '깃과 단추', def: 'sky' },
+  { id: 'track', name: '트레이닝복', cap: '흰 줄 운동복', def: 'green' },
+  { id: 'overalls', name: '멜빵 바지', cap: '흰 티에 멜빵', def: 'denim' },
+];
+// 예전 옷 이름 → [스타일, 색]
+const OLD_OUTFITS = {
+  wear_hoodie: ['hoodie', 'green'], wear_appteacher: ['shirt', 'green'], wear_knitdev: ['mtm', 'green'], wear_beige: ['jacket', 'beige'],
+  wear_moral: ['cardigan', 'navy'], wear_trainee: ['shirt', 'white'], wear_planner: ['mtm', 'pink'], wear_tycoon: ['suit', 'black'],
+  flannel: ['shirt', 'red'], turtle: ['mtm', 'black'], sky: ['shirt', 'sky'], windbreaker: ['track', 'red'], fleece: ['jacket', 'white'],
+  puffer: ['jacket', 'navy'], pajama: ['mtm', 'pink'],
+};
+const shade = (hex, k) => '#' + [1, 3, 5].map((i) => Math.max(0, Math.min(255, Math.round(parseInt(hex.slice(i, i + 2), 16) * k))).toString(16).padStart(2, '0')).join('');
+const light = (hex) => [1, 3, 5].reduce((s, i) => s + parseInt(hex.slice(i, i + 2), 16), 0) > 560;
+// 스타일 + 색 → 그리는 데 쓰는 값 (blocky.js buildBlock)
+export function outfitOf(look) {
+  const o = OUTFITS.find((x) => x.id === look.outfit) || OUTFITS[0];
+  const c = (OUTFIT_COLORS.find((x) => x.id === look.oc) || OUTFIT_COLORS.find((x) => x.id === o.def)).c;
+  const dark = shade(c, light(c) ? 0.72 : 0.62);
+  const pants = '#2c2f36';
+  switch (o.id) {
+    case 'hoodie': return { style: 'plain', top: c, bottom: pants, extras: ['hood'] };
+    case 'jacket': return { style: 'plain', top: c, inner: light(c) ? '#1d1d1f' : '#eeece6', bottom: '#2a2a2c', extras: ['jacket'] };
+    case 'cardigan': return { style: 'plain', top: c, inner: '#f3f0e8', bottom: '#3a3f4a', deco: 'buttons', decoC: dark, extras: ['collar'] };
+    case 'suit': return { style: 'plain', top: c, inner: '#f4f4f2', bottom: c, shoes: '#1d1a18', extras: ['jacket', 'tie'], tie: look.oc === 'red' ? '#2f3e66' : '#c23b3b' };
+    case 'shirt': return { style: 'plain', top: c, bottom: '#3a3f4a', deco: 'buttons', decoC: dark, extras: ['shirtcollar'] };
+    case 'track': return { style: 'plain', top: c, bottom: c, deco: 'track', decoC: light(c) ? '#2c2f36' : '#f4f4f2' };
+    case 'overalls': return { style: 'plain', top: '#f4f4f2', bottom: c, deco: 'overalls', decoC: c };
+    default: return { style: 'plain', top: c, bottom: '#2f3540' };   // 맨투맨
+  }
+}
 
 export const ACCESSORIES = [
   { id: 'none', name: '없음', cap: '소품 빼기' },
@@ -79,22 +125,23 @@ export const ACCESSORIES = [
   { id: 'glasses', name: '뿔테 안경', cap: '갈색 뿔테' },
   { id: 'roundglasses', name: '동그란 안경', cap: '얇은 금테' },
   { id: 'sunglasses', name: '선글라스', cap: '까만 네모' },
-  { id: 'beanie', name: '털모자', cap: '빨간 비니' },
   { id: 'ribbon', name: '리본 핀', cap: '커다란 빨간 리본' },
   { id: 'lotuspin', name: '꽃 핀', cap: '분홍 꽃' },
   { id: 'scarf', name: '목도리', cap: '포근한 체크 목도리' },
   { id: 'bowtie', name: '나비넥타이', cap: '빨간 나비넥타이' },
   { id: 'backpack', name: '백팩', cap: '노트북 가방' },
+  { id: 'applewatch', name: '애플워치', cap: '손목 위 작은 화면' },
+  { id: 'mask', name: '마스크', cap: '하얀 마스크' },
 ];
 
 // 책상 친구: 소호랩 기본 + 캠핑장 · 큰법당에서 인기 많았던 친구들. 고르는 목록 순서 (동물 → 사물 → AI → 없음)
 export const PET_IDS = [
-  'dog', 'cat', 'russianblue', 'baekgu', 'hamster', 'squirrel', 'bunny', 'otter', 'panda', 'turtle', 'squid', 'fishbowl',
-  'coffee', 'icecoffee', 'book', 'laptop', 'tablet',
+  'dog', 'cat', 'russianblue', 'baekgu', 'hamster', 'squirrel', 'bunny', 'otter', 'panda', 'turtle', 'fishbowl',
+  'coffee', 'icecoffee', 'laptop', 'tablet',
   'ai', 'claude', 'drone',
   'none',
 ];
-export const NEW_PETS = new Set(['russianblue', 'baekgu', 'squirrel', 'otter', 'panda', 'turtle', 'squid', 'fishbowl', 'laptop', 'tablet']);
+export const NEW_PETS = new Set(['russianblue', 'baekgu', 'squirrel', 'otter', 'panda', 'turtle', 'fishbowl', 'laptop', 'tablet']);
 
 // ───────── 책상 꾸미기 ─────────
 export const DESK_COLORS = [
@@ -197,6 +244,7 @@ export const ACTIONS = [
   { id: 'coffee', name: '커피', cap: '한 모금', dur: 3.6, feed: '커피를 한 모금 마셨습니다.' },
   { id: 'think', name: '고민', cap: '턱 괴고 생각', dur: 6, feed: '고민에 빠졌습니다.' },
   { id: 'clap', name: '박수', cap: '배포 성공!', dur: 2.6, feed: '박수를 쳤습니다.' },
+  { id: 'fw', name: '폭죽', cap: '모두에게 펑!', dur: 2.6, feed: '폭죽을 터뜨렸습니다. 🎆' },
   // 걸어갔다 오는 동작
   { id: 't_coffee', name: '커피머신 가기', cap: '커피머신까지', trip: 'coffee', pose: 'pour', feed: '커피를 타러 갔습니다.' },
   { id: 't_print', name: '프린트하기', cap: '프린터까지', trip: 'printer', pose: 'print', feed: '프린트하러 갔습니다.' },
@@ -204,11 +252,12 @@ export const ACTIONS = [
   { id: 't_board', name: '화이트보드', cap: '아이디어 적기', hidden: true, trip: 'board', pose: 'board', feed: '화이트보드에 뭔가 적으러 갔습니다.' },
   { id: 't_window', name: '바람 쐬기', cap: '창가에서 기지개', trip: 'window', pose: 'window', feed: '창가로 바람 쐬러 갔습니다.' },
   { id: 't_fridge', name: '냉장고 가기', cap: '음료 무제한 무료', fridge: true },
-  // 냉장고 음료 (무알콜 맥주 · 콜라 · 사이다 무제한 무료). 냉장고를 누르면 고르는 창이 떠요
-  { id: 't_beer', name: '무알콜 맥주', hidden: true, trip: 'fridge', pose: 'can_beer', feed: '냉장고에서 무알콜 맥주를 꺼냈습니다. 🍺' },
+  { id: 't_sofa', name: '소파에 앉기', cap: '라운지에서 쉬기', sofa: true },
+  // 냉장고 음료 (웰치스 포도 · 콜라 · 사이다 무제한 무료). 냉장고를 누르면 고르는 창이 떠요
+  { id: 't_grape', name: '웰치스 포도', hidden: true, trip: 'fridge', pose: 'can_grape', feed: '냉장고에서 웰치스 포도를 꺼냈습니다. 🍇' },
   { id: 't_cola', name: '콜라', hidden: true, trip: 'fridge', pose: 'can_cola', feed: '냉장고에서 콜라를 꺼냈습니다. 🥤' },
   { id: 't_cider', name: '사이다', hidden: true, trip: 'fridge', pose: 'can_cider', feed: '냉장고에서 사이다를 꺼냈습니다. 🫧' },
-  { id: 'can_beer', pose: true, dur: 4 },
+  { id: 'can_grape', pose: true, dur: 4 },
   { id: 'can_cola', pose: true, dur: 4 },
   { id: 'can_cider', pose: true, dur: 4 },
   // 도착해서 하는 자세 (막대에 안 나옴)
@@ -234,12 +283,16 @@ export const NAME_ADJ = ['말랑한', '포근한', '느긋한', '수줍은', '�
 export const NAME_NOUN = ['감자', '만두', '쿠키', '푸딩', '젤리', '호떡', '모찌', '두부', '펭귄', '수달', '판다', '오리', '햄찌', '냥이', '픽셀', '키캡'];
 export const randomName = () => NAME_ADJ[(Math.random() * NAME_ADJ.length) | 0] + ' ' + NAME_NOUN[(Math.random() * NAME_NOUN.length) | 0];
 
-export const defaultLook = () => ({ body: 'base', type: 'hoodie', gender: 'm', skin: SKIN_TONES[0], outfit: 'wear_hoodie', acc: 'headphones', pet: 'coffee' });
+export const defaultLook = () => ({ body: 'base', type: 'hoodie', gender: 'm', skin: SKIN_TONES[0], outfit: 'hoodie', oc: 'green', acc: 'headphones', pet: 'coffee' });
 
 // 예전에 저장된 모습 · 프로필을 지금 모양으로 (캐릭터 기본 옷 → 그 캐릭터 차림, 한 줄 소개·지금 하는 일 → 메모)
 export function fixLook(l) {
   const look = { ...defaultLook(), ...(l || {}) };
-  if (look.outfit === 'own' || !OUTFITS.some((o) => o.id === look.outfit)) look.outfit = 'wear_' + (CHAR_TYPES.some((t) => t.id === look.type) ? look.type : 'hoodie');
+  if (look.outfit === 'own') look.outfit = 'wear_' + look.type;
+  if (OLD_OUTFITS[look.outfit]) [look.outfit, look.oc] = OLD_OUTFITS[look.outfit];
+  if (!OUTFITS.some((o) => o.id === look.outfit)) look.outfit = 'hoodie';
+  if (!OUTFIT_COLORS.some((c) => c.id === look.oc)) look.oc = OUTFITS.find((o) => o.id === look.outfit).def;
+  if (!HAIR_COLORS.some((h) => h.id === look.hc)) look.hc = 'base';
   if (!BODIES.some((b) => b.id === look.body)) look.body = 'base';
   if (!ACCESSORIES.some((a) => a.id === look.acc)) look.acc = 'none';
   if (!PET_IDS.includes(look.pet)) look.pet = 'none';

@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
-  RELAY_URL, SITE, FLOORS, SEATS, MAX_MEMOS, MAX_LINKS, MAX_ITEMS, LIMITS, SKIN_TONES, BODIES, CHAR_TYPES, hairName, GENDERS, OUTFITS, ACCESSORIES, ACTIONS,
+  RELAY_URL, SITE, FLOORS, SEATS, MAX_MEMOS, MAX_LINKS, MAX_ITEMS, LIMITS, SKIN_TONES, BODIES, CHAR_TYPES, hairName, HAIR_COLORS, GENDERS, OUTFITS, OUTFIT_COLORS, ACCESSORIES, ACTIONS,
   PET_IDS, NEW_PETS, DESK_COLORS, CHAIR_COLORS, MONITORS, KEYBOARDS, CHAIRS, DESK_ITEMS, TIERS, SHOP, shopKey, FREE_OWNED, levelOf, xpForLevel,
   MEMO_MODES, FLOOR_THEMES, randomName, defaultLook, fixLook, fixProfile, defaultDesk, safeUrl, hostOf,
 } from './data.js';
@@ -13,6 +13,9 @@ import { Net } from './net.js';
 import { findBad } from './badwords.js';
 import { initTodo } from './todo.js';
 import { Sound, MUSIC, AMBIENT } from './sound.js';
+import { addPhoto, listPhotos, removePhoto } from './album.js';
+import { launchFirework, stepFireworks } from './fx.js';
+import { BADGES, earned } from './badges.js';
 
 const Q = new URLSearchParams(location.search);
 const $ = (s) => document.querySelector(s);
@@ -120,20 +123,26 @@ function setOffice(floor) {
 function applyTime() {
   if (!office) return;
   const T = office.theme, L = T.light || {};
-  const h = Q.has('hour') ? +Q.get('hour') : T.hour ?? new Date().getHours();
+  // 창밖 하늘은 실제 한국 시간대로 (낮 · 노을 · 밤). 우주 · 네온 창밖은 늘 그대로
+  const h = Q.has('hour') ? +Q.get('hour') : new Date(Date.now() + 9 * 3600e3).getUTCHours();
   office.paintSky(h);
+  // 낮으로 꾸민 층도 밤이 되면 햇빛을 줄이고, 노을 무렵엔 붉게
+  const phase = (x) => (x < 5 || x >= 19 ? 'night' : x < 7 || x >= 17 ? 'dusk' : 'day');
+  const tp = phase(T.hour ?? 12), np = phase(h);
+  const k = tp === 'day' && np === 'night' ? 0.5 : tp === 'day' && np === 'dusk' ? 0.8 : 1;
   hemi.color.set(L.sky || '#cdd6ff');
   hemi.groundColor.set(L.ground || '#4a3a2e');
-  hemi.intensity = L.hemi ?? 1;
-  sun.intensity = L.sun ?? 1.2;
-  sun.color.set(L.sunC || '#ffe6c8');
-  renderer.toneMappingExposure = L.exp ?? 1.05;
+  hemi.intensity = (L.hemi ?? 1) * (0.55 + 0.45 * k) * (tp === 'night' && np === 'day' ? 1.15 : 1);
+  sun.intensity = (L.sun ?? 1.2) * k;
+  sun.color.set(tp === 'day' && np === 'dusk' ? '#ffb47a' : tp === 'day' && np === 'night' ? '#c8d0ff' : L.sunC || '#ffe6c8');
+  renderer.toneMappingExposure = (L.exp ?? 1.05) * (0.9 + 0.1 * k);
   scene.fog = L.fog ? new THREE.Fog(L.fog[0], L.fog[1], L.fog[2]) : null;
 }
 
 // ───────── 카메라 ─────────
 const cam = { yaw: Math.PI, pitch: 0.42, dist: 5.2, target: new THREE.Vector3(0, 1.2, 0), wantYaw: null, wantDist: null };
 function placeCamera(dt) {
+  if (S.calm && office) { calmCamera(dt); return; }
   if (!S.entered || !me) {
     // 로딩 중: 사무실 남쪽 벽 앞에서 천천히 좌우로 둘러본다
     // 로딩 중: 사무실 남쪽에서 천천히 좌우로 훑으며 둘러봐요
@@ -213,7 +222,8 @@ const endPtr = (e) => {
   touches.delete(e.pointerId);
   if (e.pointerId !== ptr.id) return;
   if (ptr.down && ptr.moved <= 6 && e.type === 'pointerup') {
-    if (!$('#desk-modal').hidden) closeModal('desk-modal'); // 꾸미기 창 바깥을 누르면 닫기
+    if (S.photo) { /* 사진 찍는 중에는 구도만 잡아요 */ }
+    else if (!$('#desk-modal').hidden) closeModal('desk-modal'); // 꾸미기 창 바깥을 누르면 닫기
     else pick(e.clientX, e.clientY);
   }
   ptr.down = false;
@@ -268,6 +278,7 @@ function pick(x, y) {
   else if (u.kind === 'printer') doTrip(ACTIONS.find((a) => a.id === 't_print'));
   else if (u.kind === 'water') doTrip(ACTIONS.find((a) => a.id === 't_water'));
   else if (u.kind === 'board') openModal('guide-modal');
+  else if (u.kind === 'sofa') goSofa(hit.point);
 }
 
 // ───────── 길찾기: 0.4 m 칸 지도에서 책상 · 의자 · 화분 둘레에 여유를 두고 A* ─────────
@@ -347,7 +358,7 @@ function walkToPoint() {
   p.z = Math.max(ROOM.minZ + 0.4, Math.min(ROOM.maxZ - 0.4, p.z));
   stopTour();
   tripToken++;
-  if (S.sitting) standUp();
+  if (S.sitting) standUp(); leaveSofa();
   marker.position.set(p.x, 0.02, p.z);
   marker.visible = true;
   S.walkTo = { x: p.x, z: p.z, t: 0, best: Infinity, stuck: 0, soft: true, then: hideMarker };
@@ -368,6 +379,7 @@ function standPoint(seat) {
 function sitDown() {
   const seat = office.seats[S.seat];
   if (!seat) return;
+  if (S.sofa >= 0) { S.sofa = -1; me.idle = false; }
   S.walkTo = null;
   S.sitting = true;
   me.seated = true;
@@ -397,11 +409,54 @@ function goSit() {
   const seat = office.seats[S.seat];
   if (!seat) return;
   if (S.sitting) return;
+  leaveSofa();
   const p = standPoint(seat);
   S.walkTo = { x: p.x, z: p.z, then: sitDown, t: 0, best: Infinity, stuck: 0 };
 }
 
 function goCoffee() { doTrip(ACTIONS.find((a) => a.id === 't_coffee')); }
+
+// 🛋️ 소파: 라운지 소파 다섯 자리. 걸어가서 앉아 쉬어요 (코딩 대신 가만히). 움직이면 일어나요
+const SOFA_Y = 0.58;
+S.sofa = -1;
+function sofaTaken() {
+  const list = office?.sofas || [];
+  return new Set([...S.peers.values()].filter((p) => p.st?.idle).map((p) => list.findIndex((s) => Math.hypot(s.x - p.st.x, s.z - p.st.z) < 0.4)));
+}
+function goSofa(near) {
+  const list = office?.sofas;
+  if (!list?.length || !me) return;
+  if (S.sofa >= 0) return;
+  const taken = sofaTaken();
+  const free = list.map((s, i) => i).filter((i) => !taken.has(i));
+  if (!free.length) { toast('소파 자리가 다 찼어요'); return; }
+  const from = near || me.group.position;
+  const i = free.sort((a, b) => Math.hypot(list[a].x - from.x, list[a].z - from.z) - Math.hypot(list[b].x - from.x, list[b].z - from.z))[0];
+  const s = list[i];
+  stopTour();
+  const tok = ++tripToken;
+  if (S.sitting) standUp(); leaveSofa();
+  S.walkTo = { x: s.fx, z: s.fz, t: 0, best: Infinity, stuck: 0, then: () => {
+    if (tok !== tripToken) return;
+    S.sofa = i;
+    me.seated = true; me.idle = true; me.speed = 0;
+    me.group.position.set(s.x, SOFA_Y, s.z);
+    me.group.rotation.y = s.ry;
+    camBehind(s.ry, 4.2, 0.5);
+    feed(S.name, '소파에 앉아 쉬어요. 🛋️');
+    sendState(true);
+    renderActions();
+  } };
+}
+function leaveSofa() {
+  if (S.sofa < 0) return;
+  const s = office?.sofas?.[S.sofa];
+  S.sofa = -1;
+  me.seated = false; me.idle = false; me.stop?.();
+  if (s) me.group.position.set(s.fx, 0, s.fz); else me.group.position.y = 0;
+  sendState(true);
+  renderActions();
+}
 
 // 걸어갔다 오는 동작: 그 자리까지 걸어가서 자세를 하고, 끝나면 내 자리로 돌아와 앉아요
 let tripToken = 0;
@@ -409,10 +464,12 @@ function doTrip(def) {
   const sp = office?.spots?.[def?.trip];
   if (!sp || !me) return;
   stopTour();
-  if (S.sitting) standUp();
+  if (S.sitting) standUp(); leaveSofa();
   const tok = ++tripToken;
   feed(S.name, def.feed);
   net.sendAct({ a: def.id });
+  const cn = { t_coffee: 'coffee', t_grape: 'grape', t_cola: 'cola', t_cider: 'cider' }[def.id];
+  if (cn) bump(cn);
   S.walkTo = { x: sp.x, z: sp.z, t: 0, best: Infinity, stuck: 0, then: () => {
     if (tok !== tripToken) return;
     me.group.rotation.y = sp.ry;
@@ -439,11 +496,13 @@ const saidText = (m) => `'${m}'라고 말했습니다.`;
 
 // 캔 그림: 은색 뚜껑 · 테두리, 둥근 몸통 명암, 앞면 무늬 (상표 없이 소호랩 캔)
 function canSvg(id) {
-  const k = { t_beer: { body: '#d9a43a', dark: '#9a6a1a', ink: '#fff6dc', t1: 'LAGER', t2: '0.0', mark: 'hop' }, t_cola: { body: '#c8302a', dark: '#7a1612', ink: '#ffffff', t1: 'COLA', t2: '355ml', mark: 'wave' }, t_cider: { body: '#2f9a52', dark: '#16592c', ink: '#ffffff', t1: 'CIDER', t2: 'LEMON·LIME', mark: 'bubbles' } }[id];
+  const k = { t_grape: { body: '#6a2c8a', dark: '#3e1452', ink: '#ffffff', t1: 'GRAPE', t2: 'SPARKLING', mark: 'grape' }, t_cola: { body: '#c8302a', dark: '#7a1612', ink: '#ffffff', t1: 'COLA', t2: '355ml', mark: 'wave' }, t_cider: { body: '#2f9a52', dark: '#16592c', ink: '#ffffff', t1: 'CIDER', t2: 'LEMON·LIME', mark: 'bubbles' } }[id];
   const g = 'g' + id;
   const mark = k.mark === 'wave'
     ? `<path d="M6 58 C 20 46, 34 70, 54 52 L54 62 C 36 78, 20 56, 6 68 Z" fill="#fff" opacity=".95"/>`
-    : k.mark === 'hop'
+    : k.mark === 'grape'
+      ? `<g transform="translate(30 40)"><path d="M2 -14 q6 -6 12 -2 q-6 4 -12 2z" fill="#5fae3a"/><path d="M0 -16 v6" stroke="#7a5a2a" stroke-width="1.6"/><g fill="#b58ad8" stroke="#4a1a66" stroke-width=".6"><circle cx="-6" cy="-7" r="4"/><circle cx="2" cy="-7" r="4"/><circle cx="10" cy="-7" r="4"/><circle cx="-2" cy="0" r="4"/><circle cx="6" cy="0" r="4"/><circle cx="2" cy="7" r="4"/></g></g>`
+      : k.mark === 'hop'
       ? `<g transform="translate(30 36)"><ellipse rx="7" ry="9" fill="#5c8a2c"/><path d="M-7 0 h14 M-6 -4 h12 M-6 4 h12" stroke="#3f6a1a" stroke-width="1.2"/><path d="M0 -9 v-5" stroke="#5c8a2c" stroke-width="2"/></g>`
       : `<g fill="#fff" opacity=".85"><circle cx="16" cy="34" r="3"/><circle cx="26" cy="26" r="2"/><circle cx="40" cy="32" r="4"/><circle cx="46" cy="22" r="2"/><circle cx="20" cy="22" r="1.6"/></g><path d="M6 70 L54 50 L54 58 L6 78 Z" fill="#f2e85a" opacity=".9"/>`;
   return `<svg class="can" viewBox="0 0 60 104" aria-hidden="true">
@@ -462,11 +521,11 @@ function canSvg(id) {
   </svg>`;
 }
 
-// 냉장고: 무알콜 맥주 · 콜라 · 사이다 무제한 무료
+// 냉장고: 웰치스 포도 · 콜라 · 사이다 무제한 무료
 function openFridge() {
   const el = $('#fridge-list');
   el.innerHTML = '';
-  for (const id of ['t_beer', 't_cola', 't_cider']) {
+  for (const id of ['t_grape', 't_cola', 't_cider']) {
     const def = ACTIONS.find((a) => a.id === id);
     const b = document.createElement('button');
     b.type = 'button';
@@ -527,7 +586,7 @@ let touring = false;
 function startTour() {
   if (!office?.tour || !me) return;
   tripToken++;
-  if (S.sitting) standUp();
+  if (S.sitting) standUp(); leaveSofa();
   const pts = office.tour, p = me.group.position;
   let k = 0, best = Infinity;
   pts.forEach(([x, z], i) => { const d = Math.hypot(x - p.x, z - p.z); if (d < best) { best = d; k = i; } });
@@ -535,7 +594,7 @@ function startTour() {
   touring = true;
   const step = (i) => {
     if (!touring) return;
-    if (i >= seq.length) { touring = false; goSit(); renderActions(); return; }
+    if (i >= seq.length) { touring = false; bump('tour'); goSit(); renderActions(); return; }
     S.walkTo = { x: seq[i][0], z: seq[i][1], t: 0, best: Infinity, stuck: 0, then: () => step(i + 1) };
   };
   step(0);
@@ -610,8 +669,9 @@ let lastSent = null, sendT = 0;
 function sendState(force) {
   if (!me) return;
   const p = me.group.position;
-  const st = { x: +p.x.toFixed(2), z: +p.z.toFixed(2), ry: +me.group.rotation.y.toFixed(2), sit: S.sitting };
-  if (!force && lastSent && Math.abs(st.x - lastSent.x) < 0.03 && Math.abs(st.z - lastSent.z) < 0.03 && Math.abs(st.ry - lastSent.ry) < 0.05 && st.sit === lastSent.sit) return;
+  // idle: 소파에 앉아 쉬는 중 (책상 자리 대신 그 자리에 앉은 모습)
+  const st = { x: +p.x.toFixed(2), z: +p.z.toFixed(2), ry: +me.group.rotation.y.toFixed(2), sit: S.sitting, idle: S.sofa >= 0 };
+  if (!force && lastSent && Math.abs(st.x - lastSent.x) < 0.03 && Math.abs(st.z - lastSent.z) < 0.03 && Math.abs(st.ry - lastSent.ry) < 0.05 && st.sit === lastSent.sit && st.idle === lastSent.idle) return;
   lastSent = st;
   net.sendState(st);
 }
@@ -671,10 +731,11 @@ function updatePeers(dt) {
   for (const p of S.peers.values()) {
     const g = p.av.group;
     if (!p.shown) continue;
-    const sit = !!p.st?.sit;
+    const sit = !!p.st?.sit, sofa = !sit && !!p.st?.idle;
     const seat = office.seats[p.seat];
-    let tx = p.tx, tz = p.tz, ty = 0, tr = p.try;
+    let tx = p.tx, tz = p.tz, ty = sofa ? SOFA_Y : 0, tr = p.try;
     if (sit && seat) { tx = seat.x; tz = seat.z; ty = 0.42; tr = seat.ry; }
+    p.av.idle = sofa;
     const dx = tx - g.position.x, dz = tz - g.position.z;
     const d = Math.hypot(dx, dz);
     if (d > 4) { g.position.set(tx, ty, tz); p.av.speed = 0; }
@@ -682,10 +743,10 @@ function updatePeers(dt) {
       const k = Math.min(1, dt * 8);
       g.position.x += dx * k; g.position.z += dz * k;
       g.position.y = ty;
-      p.av.speed = sit ? 0 : Math.min(5, (d * k) / Math.max(dt, 1e-3));
+      p.av.speed = sit || sofa ? 0 : Math.min(5, (d * k) / Math.max(dt, 1e-3));
     }
     g.rotation.y = lerpAngle(g.rotation.y, tr, Math.min(1, dt * 10));
-    p.av.seated = sit;
+    p.av.seated = sit || sofa;
     p.av.update(dt, ACTIONS);
   }
 }
@@ -767,7 +828,12 @@ const net = new Net({
   onAct(id, d) {
     const p = S.peers.get(id);
     if (!p) return;
-    if (d.m !== undefined) {
+    if (d.fw) {
+      launchFirework(scene, p.av.group.position, ROOM.H, d.fw, p.av.group.rotation.y);
+      p.av.play('clap');
+      sound.pop();
+      feed(p.pf.n, '폭죽을 터뜨렸습니다. 🎆');
+    } else if (d.m !== undefined) {
       if (S.othersMemo) p.av.pin(d.m);
       const m = p.pf.memos?.[d.m];
       if (m?.trim()) feed(p.pf.n, saidText(m));
@@ -858,6 +924,7 @@ async function enter(floor) {
 // ───────── 동작 · 메모 ─────────
 function doAct(id) {
   if (!me) return;
+  if (id === 'fw') { shootFirework(); return; }
   const on = me.play(id);
   net.sendAct({ a: id });
   if (on) feed(S.name, ACTIONS.find((x) => x.id === id)?.feed);
@@ -869,9 +936,9 @@ function renderActions() {
   // 자리 릴: [내 자리로 · 일어서기 · 사무실 한 바퀴] 를 굴려 멈춘 것을 해요 (지금 상태가 보이는 칸)
   const now = S.sitting ? 0 : touring ? 2 : 1;
   // 가운데 칸: 앉아 있을 땐 [일어서기], 돌아다닐 땐 [멈추기]
-  const sitReel = makeReel(['내 자리로', S.sitting ? '일어서기' : '멈추기', '사무실 한 바퀴'], now, (i) => {
+  const sitReel = makeReel(['내 자리로', S.sitting || S.sofa >= 0 ? '일어서기' : '멈추기', '사무실 한 바퀴'], now, (i) => {
     if (i === 0) { stopTour(); if (!S.sitting) goSit(); }
-    else if (i === 1) { stopTour(); tripToken++; if (S.sitting) standUp(); else { S.walkTo = null; hideMarker(); } }
+    else if (i === 1) { stopTour(); tripToken++; if (S.sitting) standUp(); else if (S.sofa >= 0) leaveSofa(); else { S.walkTo = null; hideMarker(); } }
     else if (!touring) startTour();
   }, 'sit');
   sitReel.title = S.sitting ? '내 자리로 · 일어서기 · 사무실 한 바퀴' : '내 자리로 · 멈추기 · 사무실 한 바퀴';
@@ -882,13 +949,13 @@ function renderActions() {
   const left = $('#walk-acts');
   left.innerHTML = '';
   // 오른쪽 걸어갔다 오는 동작은 글자 수 짧은 것부터
-  const len = (a) => (a.trip || a.fridge ? a.name.replace(/\s/g, '').length : 0);
+  const len = (a) => (a.trip || a.fridge || a.sofa ? a.name.replace(/\s/g, '').length : 0);
   for (const a of ACTIONS.filter((x) => !x.auto && x.pose !== true && !x.hidden).sort((p, q) => len(p) - len(q))) {
-    const moving = a.trip || a.fridge;
+    const moving = a.trip || a.fridge || a.sofa;
     const b = document.createElement('button');
     b.className = moving ? 'side-btn' : 'act';
     b.innerHTML = `<span>${a.name}</span><small class="cap">${a.cap}</small>`;
-    b.onclick = () => (a.fridge ? openFridge() : a.trip ? doTrip(a) : doAct(a.id));
+    b.onclick = () => (a.sofa ? goSofa() : a.fridge ? openFridge() : a.trip ? doTrip(a) : doAct(a.id));
     (moving ? left : el).append(b);
   }
 }
@@ -1084,7 +1151,7 @@ function closeModal(id) {
     if (S.sitting) camBehind(office.seats[S.seat].ry, 3.4);
   }
 }
-function closeAll() { ['desk-modal', 'peek-modal', 'floor-modal', 'guide-modal', 'seat-modal', 'fridge-modal', 'show-modal', 'shop-modal'].forEach(closeModal); if (!$('#creator').hidden) closeModal('creator'); closeCard(); $('#menu').hidden = true; }
+function closeAll() { ['desk-modal', 'peek-modal', 'floor-modal', 'guide-modal', 'seat-modal', 'fridge-modal', 'show-modal', 'shop-modal', 'stats-modal', 'prefs-modal', 'report-modal', 'photo-modal'].forEach(closeModal); if (!$('#creator').hidden) closeModal('creator'); closeCard(); $('#menu').hidden = true; }
 document.addEventListener('click', (e) => {
   const c = e.target.closest('[data-close]');
   if (c) { const id = c.dataset.close; if (id === 'card') closeCard(); else closeModal(id); }
@@ -1373,7 +1440,7 @@ function renderXp() {
   if (w) w.innerHTML = `<b>Lv ${L}</b> · 다음 레벨까지 ${b - S.xp}분 · <b class="pts">${S.pts.toLocaleString()} P</b>`;
 }
 const today = () => new Date().toLocaleDateString('sv');
-let focusLast = Date.now(), focusCarry = store.get('focusCarry', 0);
+let focusLast = Date.now(), focusCarry = store.get('focusCarry', 0), chimeHour = -1;
 function tickFocus() {
   const now = Date.now();
   const dt = Math.min(90, (now - focusLast) / 1000);
@@ -1381,8 +1448,15 @@ function tickFocus() {
   if (!S.entered) { $('#focus-chip').hidden = true; return; }
   const key = 'focus.' + today();
   let s = store.get(key, 0);
+  // 정각 종소리 (소리를 켠 분만)
+  const hr = new Date().getHours();
+  if (chimeHour !== hr) { if (chimeHour >= 0 && store.get('chime', true)) sound.chime(); chimeHour = hr; }
   if (S.sitting) {
     s += dt; store.set(key, Math.round(s));
+    // 새벽 · 아침 배지
+    const c = store.get('cnt', {});
+    if (hr >= 1 && hr < 5 && !c.night) bump('night');
+    if (hr >= 5 && hr < 8 && !c.early) bump('early');
     // 앉아 있던 60초마다 1 XP · 1 P
     focusCarry += dt;
     if (focusCarry >= 60) {
@@ -1481,7 +1555,37 @@ function renderCreator() {
   $('#body-name').textContent = BODIES.find((B) => B.id === S.draft.body)?.label || '';
   chips($('#opt-gender'), GENDERS, 'gender', (g) => g.name);
   chips($('#opt-type'), CHAR_TYPES, 'type', (t) => hairName(t, S.draft.gender));
-  chips($('#opt-outfit'), OUTFITS.filter((o) => !o.hidden), 'outfit', (o) => o.name);
+  // 머리색: 첫 칸 '기본'은 머리 스타일마다 정해진 색
+  const hcEl = $('#opt-hc');
+  hcEl.innerHTML = '';
+  for (const h of HAIR_COLORS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'swatch' + (h.c ? '' : ' base');
+    if (h.c) b.style.background = h.c; else b.textContent = '기본';
+    b.title = h.name;
+    b.setAttribute('aria-label', `머리색 ${h.name}`);
+    b.setAttribute('aria-pressed', (S.draft.hc || 'base') === h.id);
+    b.onclick = () => { S.draft.hc = h.id; renderCreator(); };
+    hcEl.append(b);
+  }
+  $('#hc-name').textContent = HAIR_COLORS.find((h) => h.id === (S.draft.hc || 'base'))?.name || '';
+  chips($('#opt-outfit'), OUTFITS, 'outfit', (o) => o.name);
+  // 옷 색: 고른 스타일에 입힐 색
+  const oc = $('#opt-oc');
+  oc.innerHTML = '';
+  for (const c of OUTFIT_COLORS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'swatch';
+    b.style.background = c.c;
+    b.title = c.name;
+    b.setAttribute('aria-label', `옷 색 ${c.name}`);
+    b.setAttribute('aria-pressed', S.draft.oc === c.id);
+    b.onclick = () => { S.draft.oc = c.id; renderCreator(); };
+    oc.append(b);
+  }
+  $('#oc-name').textContent = OUTFIT_COLORS.find((c) => c.id === S.draft.oc)?.name || '';
   chips($('#opt-acc'), ACCESSORIES, 'acc');
   chips($('#opt-pet'), PET_IDS.map((id) => PETS.find((p) => p.id === id)).filter(Boolean), 'pet', (p) => p.name);
   const sk = $('#opt-skin');
@@ -1636,7 +1740,8 @@ if (store.get('todoOpen', false)) setTodoOpen(true);
 
 // 🎵 소리: 배경음악 5곡 · 배경음 5가지 (고른 건 기억했다가 다음에 처음 누를 때 다시 켜요)
 const sound = new Sound();
-const snd = { music: store.get('music', null), amb: store.get('ambient', null) };
+// 처음 오신 분은 로파이 + 키보드 소리로 시작 (끄기를 고르면 그대로 꺼진 채 기억해요)
+const snd = { music: store.get('music', 'lofi'), amb: store.get('ambient', 'keys') };
 sound.musicVol = store.get('musicVol', 0.5);
 sound.ambVol = store.get('ambVol', 0.6);
 function renderSound() {
@@ -1666,7 +1771,7 @@ $('#snd-close').onclick = () => setSoundOpen(false);
 document.addEventListener('pointerdown', (e) => { if (!$('#sound-pop').hidden && !e.target.closest('#sound-pop, #btn-sound')) setSoundOpen(false); });
 renderSound();
 // 지난번에 듣던 소리: 브라우저 규칙상 처음 한 번 누르거나 키를 칠 때 켜요
-if ((snd.music || snd.amb) && !Q.has('mute')) {
+if ((snd.music || snd.amb) && !Q.has('mute') && store.get('autoSound', true)) {
   const wake = () => {
     removeEventListener('pointerdown', wake, true); removeEventListener('keydown', wake, true);
     if (snd.music) sound.setMusic(snd.music);
@@ -1674,23 +1779,340 @@ if ((snd.music || snd.amb) && !Q.has('mute')) {
   };
   addEventListener('pointerdown', wake, true); addEventListener('keydown', wake, true);
 }
-$('#btn-menu').onclick = () => { $('#menu').hidden = !$('#menu').hidden; $('#menu-others').textContent = S.othersMemo ? '다른 분 말풍선 숨기기' : '다른 분 말풍선 보기'; };
+$('#btn-menu').onclick = () => { $('#menu').hidden = !$('#menu').hidden; };
 $('#menu').addEventListener('click', (e) => {
   const b = e.target.closest('[data-menu]');
   if (!b) return;
   $('#menu').hidden = true;
   const m = b.dataset.menu;
   if (m === 'guide') openModal('guide-modal');
-
-  if (m === 'memo') openDesk('memo');
-  if (m === 'floor') openFloors();
-  if (m === 'others') {
-    S.othersMemo = !S.othersMemo;
-    store.set('othersMemo', S.othersMemo);
-    for (const p of S.peers.values()) p.av.setMemos(S.othersMemo ? p.pf.memos : [], p.pf.mm || 'auto', p.pf.mi | 0);
-    toast(S.othersMemo ? '다른 분 말풍선을 다시 보여요' : '다른 분 말풍선을 숨겼어요');
-  }
+  if (m === 'stats') openStats();
+  if (m === 'prefs') openPrefs();
+  if (m === 'report') openReport();
+  if (m.startsWith('btn-')) $('#' + m).click(); // 휴대폰: 위 단추줄에서 메뉴로 옮긴 것
 });
+
+// 📊 내 기록: 레벨 · 포인트 · 총 집중 · 연속 출근 · 최근 7일 막대 · 오늘 한 일
+const dayKey = (d) => d.toLocaleDateString('sv');
+const fmtMin = (sec) => { const t = Math.round(sec / 60), h = Math.floor(t / 60); return h ? `${h}시간 ${t % 60}분` : `${t}분`; };
+const shortMin = (sec) => { const t = Math.round(sec / 60), h = Math.floor(t / 60), m = t % 60; return h ? (m ? `${h}h${m}m` : `${h}h`) : `${m}m`; };
+// 이 브라우저에 쌓인 기록 모으기 (내 기록 · 배지가 함께 써요)
+let photoCount = 0;
+listPhotos().then((l) => { photoCount = l.length; });
+function totals() {
+  let streak = 0;
+  for (let i = 0; i < 3650; i++) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    if (store.get('focus.' + dayKey(d), 0) >= 60) streak++;
+    else if (i > 0) break; // 오늘은 아직 안 앉았어도 어제까지 이어진 건 세요
+  }
+  const days = [];
+  let done = 0, best = 0;
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k.startsWith('soho.focus.')) { const s = +localStorage.getItem(k); if (s >= 60) days.push({ d: k.slice(11), s }); best = Math.max(best, s); }
+      if (k.startsWith('soho.day.')) done += (JSON.parse(localStorage.getItem(k))?.todos || []).filter((t) => t.d).length;
+    }
+  } catch {}
+  return { days, streak, best, done, lv: lv(), cnt: store.get('cnt', {}), photos: photoCount, links: S.profile.links?.filter((l) => l.u).length || 0 };
+}
+function bump(k) {
+  const c = store.get('cnt', {});
+  c[k] = (c[k] || 0) + 1;
+  store.set('cnt', c);
+  checkBadges();
+}
+// 새 배지를 받으면 한 번 알려 줘요 (처음 켰을 때 이미 받은 것들은 조용히)
+function checkBadges() {
+  const got = earned(totals()).map((b) => b.id);
+  const seen = store.get('badges', null);
+  store.set('badges', got);
+  if (!seen || !S.entered) return;
+  for (const id of got) if (!seen.includes(id)) {
+    const b = BADGES.find((x) => x.id === id);
+    toast(`🏅 새 배지: ${b.icon} ${b.name}`, 5000);
+  }
+}
+setInterval(checkBadges, 60 * 1000);
+checkBadges();
+
+function openStats() {
+  const days = [];
+  for (let i = 6; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); days.push(d); }
+  const week = days.map((d) => ({ d, s: store.get('focus.' + dayKey(d), 0) }));
+  const T = totals();
+  const streak = T.streak, doneAll = T.done, workDays = T.days.length;
+  const got = new Set(earned(T).map((b) => b.id));
+  $('#st-badge-n').textContent = `${got.size} / ${BADGES.length}`;
+  $('#st-badges').innerHTML = BADGES.map((b) => `<div class="st-badge${got.has(b.id) ? ' got' : ''}" title="${esc(b.cap)}"><i>${b.icon}</i><b>${esc(b.name)}</b><small>${esc(b.cap)}</small></div>`).join('');
+  renderPhotos();
+  const td = store.get('day.' + dayKey(new Date()), { todos: [] });
+  const tDone = (td.todos || []).filter((t) => t.d).length, tAll = (td.todos || []).length;
+  const card = (k, v, s = '') => `<div class="st-card"><small>${k}</small><b>${v}</b>${s ? `<span>${s}</span>` : ''}</div>`;
+  $('#st-cards').innerHTML =
+    card('레벨', `Lv ${lv()}`, `경험치 ${S.xp.toLocaleString()}`) +
+    card('포인트', `${S.pts.toLocaleString()} P`) +
+    card('총 집중', fmtMin(S.xp * 60)) +
+    card('오늘 집중', fmtMin(week[6].s)) +
+    card('연속 출근', `${streak}일`, `모두 ${workDays}일`) +
+    card('끝낸 할 일', `${doneAll}개`, tAll ? `오늘 ${tDone}/${tAll}` : '');
+  const max = Math.max(3600, ...week.map((w) => w.s));
+  const WD = '일월화수목금토';
+  $('#st-week').innerHTML = week.map((w, i) => `<div class="st-bar${i === 6 ? ' today' : ''}" title="${dayKey(w.d)} · ${fmtMin(w.s)}"><em>${w.s >= 60 ? shortMin(w.s) : ''}</em><i style="height:${Math.round((w.s / max) * 100)}%"></i><small>${i === 6 ? '오늘' : WD[w.d.getDay()]}</small></div>`).join('');
+  openModal('stats-modal');
+}
+
+// ⚙️ 개인 및 환경 설정
+function applyLite(on) { renderer.setPixelRatio(on ? 1 : Math.min(devicePixelRatio, 2)); renderer.shadowMap.enabled = !on; scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; }); }
+if (store.get('lite', false)) applyLite(true);
+function setOthersMemo(v) {
+  S.othersMemo = v;
+  store.set('othersMemo', v);
+  for (const p of S.peers.values()) p.av.setMemos(v ? p.pf.memos : [], p.pf.mm || 'auto', p.pf.mi | 0);
+}
+function openPrefs() {
+  $('#pf-name').textContent = `${S.name || '이름 없음'} ›`;
+  $('#pf-others').checked = S.othersMemo;
+  $('#pf-sound').checked = store.get('autoSound', true);
+  $('#pf-lite').checked = store.get('lite', false);
+  $('#pf-chime').checked = store.get('chime', true);
+  $('#pf-calm').checked = store.get('calmIdle', true);
+  openModal('prefs-modal');
+}
+$('#pf-chime').onchange = (e) => store.set('chime', e.target.checked);
+$('#pf-calm').onchange = (e) => store.set('calmIdle', e.target.checked);
+
+// 🖼️ 내 사진 (내 기록 창 아래)
+let phUrls = [], phOpen = null;
+async function renderPhotos() {
+  phUrls.forEach((u) => URL.revokeObjectURL(u));
+  phUrls = [];
+  const list = await listPhotos();
+  photoCount = list.length;
+  $('#st-photo-n').textContent = list.length ? `${list.length}장` : '';
+  const el = $('#st-photos');
+  el.innerHTML = list.length ? '' : '<p class="st-empty">오른쪽 위 📷 사진으로 찍으면 여기에 모여요.</p>';
+  for (const p of list) {
+    const u = URL.createObjectURL(p.blob);
+    phUrls.push(u);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.title = `${new Date(p.at).toLocaleString('ko-KR')} · ${p.place || ''}`;
+    b.innerHTML = `<img src="${u}" alt="" loading="lazy">`;
+    b.onclick = () => { phOpen = { ...p, u }; $('#ph-img').src = u; $('#ph-title').textContent = `${new Date(p.at).toLocaleDateString('ko-KR')} · ${p.place || '내 사진'}`; openModal('photo-modal'); };
+    el.append(b);
+  }
+}
+$('#ph-save').onclick = () => { if (!phOpen) return; const a = document.createElement('a'); a.href = phOpen.u; a.download = `soho-lab-${phOpen.id}.png`; a.click(); };
+$('#ph-del').onclick = async () => { if (!phOpen || !confirm('이 사진을 지울까요?')) return; await removePhoto(phOpen.id); phOpen = null; closeModal('photo-modal'); renderPhotos(); };
+
+// 📷 사진 찍기: 단추를 모두 숨기고, 화면을 끌어 구도를 잡은 뒤 셔터. 휴대폰은 공유 창, 컴퓨터는 파일로 받기
+function startPhoto() {
+  if (!S.entered) return;
+  stopCalm();
+  closeAll();
+  S.photo = true;
+  document.body.classList.add('photo');
+  $('#photo-bar').hidden = false;
+}
+function stopPhoto() {
+  S.photo = false;
+  document.body.classList.remove('photo');
+  $('#photo-bar').hidden = true;
+}
+function snapCanvas(maxSide = 0) {
+  renderer.render(scene, camera); // 바로 그린 직후에 읽어야 빈 화면이 아니다
+  const k = maxSide ? Math.min(1, maxSide / Math.max(canvas.width, canvas.height)) : 1;
+  const c = document.createElement('canvas');
+  c.width = Math.round(canvas.width * k); c.height = Math.round(canvas.height * k);
+  c.getContext('2d').drawImage(canvas, 0, 0, c.width, c.height);
+  return c;
+}
+async function takePhoto() {
+  const c = snapCanvas();
+  const g = c.getContext('2d'), fs = Math.round(Math.max(c.width, c.height) / 52);
+  g.font = `600 ${fs}px ${FONT}`;
+  g.textAlign = 'right';
+  g.fillStyle = 'rgba(255, 255, 255, .9)';
+  g.shadowColor = 'rgba(0, 0, 0, .5)'; g.shadowBlur = fs / 2;
+  g.fillText(`소호랩 ${S.floor}F · soho-lab.site`, c.width - fs, c.height - fs);
+  const flash = $('#photo-flash');
+  flash.classList.remove('on'); void flash.offsetWidth; flash.classList.add('on');
+  const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+  if (!blob) { toast('사진을 찍지 못했어요'); return; }
+  await addPhoto(blob, `${S.floor}F ${office?.theme.name || ''}`);
+  photoCount++;
+  checkBadges();
+  const name = `soho-lab-${dayKey(new Date())}-${Date.now().toString(36)}.png`;
+  const file = new File([blob], name, { type: 'image/png' });
+  if (matchMedia('(pointer: coarse)').matches && navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file] }); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  toast('사진을 저장했어요 · 메뉴 › 내 기록에도 모여요');
+}
+$('#btn-photo').onclick = startPhoto;
+$('#photo-shoot').onclick = takePhoto;
+$('#photo-close').onclick = stopPhoto;
+addEventListener('keydown', (e) => { if (S.photo && e.code === 'Escape') stopPhoto(); });
+
+// 🎆 폭죽: 내 책상 위 천장에서 펑, 같은 층 모두에게 보여요 (20초에 한 번)
+let fwAt = 0;
+function shootFirework() {
+  const left = 20000 - (Date.now() - fwAt);
+  if (left > 0) { toast(`폭죽은 ${Math.ceil(left / 1000)}초 뒤에 또 터뜨릴 수 있어요`); return; }
+  fwAt = Date.now();
+  const seed = Math.max(0.001, Math.round(Math.random() * 1000) / 1000);
+  launchFirework(scene, me.group.position, ROOM.H, seed, me.group.rotation.y);
+  me.play('clap');
+  net.sendAct({ fw: seed });
+  sound.pop();
+  feed(S.name, '폭죽을 터뜨렸습니다. 🎆');
+  bump('fw');
+}
+
+// ⛶ 바탕화면: 단추를 모두 숨기고 카메라가 사무실을 천천히 둘러봐요. 일하는 분 책상에 잠깐씩 머물러요.
+// 화면을 누르거나 아무 키나 누르면 돌아와요 (그 첫 누름은 돌아오기만 해요). 5분 동안 손대지 않아도 저절로 켜져요.
+const CALM_IDLE = 5 * 60 * 1000;
+let lastInput = Date.now(), calmClock = 0;
+const calm = { t: 0, shot: -1, pos: new THREE.Vector3(), look: new THREE.Vector3(), fresh: true };
+function startCalm(full = false) {
+  if (S.calm || !S.entered || S.photo) return;
+  S.calm = true;
+  closeAll();
+  setSoundOpen(false); setPeopleOpen(false);
+  document.body.classList.add('calm');
+  Object.assign(calm, { t: 0, shot: -1, fresh: true });
+  if (full) document.documentElement.requestFullscreen?.().catch(() => {});
+  tickCalmClock();
+  calmClock = setInterval(tickCalmClock, 1000);
+}
+function stopCalm() {
+  if (!S.calm) return;
+  S.calm = false;
+  document.body.classList.remove('calm');
+  clearInterval(calmClock);
+  lastInput = Date.now();
+  if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+}
+function tickCalmClock() {
+  const d = new Date();
+  $('#cc-time').textContent = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+  const s = store.get('focus.' + dayKey(d), 0);
+  $('#cc-sub').textContent = `${S.floor}F ${office?.theme.name || ''} · ${S.peers.size + 1}명 · 오늘 ${fmtMin(s)} 집중`;
+}
+// 장면 차례: 사무실 전체 → 사람 있는 책상 하나 → 전체 → 다른 책상 … (14초씩)
+function calmCamera(dt) {
+  calm.t += dt;
+  const SHOT = 14, n = Math.floor(calm.t / SHOT);
+  if (n !== calm.shot) {
+    calm.shot = n;
+    const seats = [S.seat, ...[...S.peers.values()].map((p) => p.seat)].filter((i) => i >= 0 && office.seats[i]);
+    calm.seat = n % 2 && seats.length ? office.seats[seats[((n - 1) / 2) % seats.length]] : null;
+    calm.a0 = Math.random() * Math.PI * 2;
+  }
+  const k = calm.t - n * SHOT;
+  const want = new THREE.Vector3(), look = new THREE.Vector3();
+  const cx = (ROOM.minX + ROOM.maxX) / 2, cz = (ROOM.minZ + ROOM.maxZ) / 2;
+  if (calm.seat) {
+    const s = calm.seat, a = calm.a0 + k * 0.05;
+    want.set(s.x + Math.sin(a) * 3.2, 2.1, s.z + Math.cos(a) * 3.2);
+    look.set(s.x, 1.0, s.z);
+  } else {
+    const a = calm.a0 + k * 0.03, rx = (ROOM.maxX - ROOM.minX) * 0.36, rz = (ROOM.maxZ - ROOM.minZ) * 0.36;
+    want.set(cx + Math.sin(a) * rx, Math.min(ROOM.H - 0.5, 4.2), cz + Math.cos(a) * rz);
+    look.set(cx - Math.sin(a) * 2, 0.6, cz - Math.cos(a) * 2);
+  }
+  want.x = Math.max(ROOM.minX + 0.4, Math.min(ROOM.maxX - 0.4, want.x));
+  want.z = Math.max(ROOM.minZ + 0.4, Math.min(ROOM.maxZ - 0.4, want.z));
+  if (calm.fresh) { calm.pos.copy(camera.position); calm.look.copy(cam.target); calm.fresh = false; }
+  const e = 1 - Math.exp(-dt * 0.9);
+  calm.pos.lerp(want, e);
+  calm.look.lerp(look, e);
+  camera.position.copy(calm.pos);
+  camera.lookAt(calm.look);
+}
+const wakeCalm = (e) => {
+  lastInput = Date.now();
+  if (!S.calm) return;
+  e.stopPropagation(); e.preventDefault();
+  stopCalm();
+};
+addEventListener('pointerdown', wakeCalm, { capture: true });
+addEventListener('keydown', wakeCalm, { capture: true });
+addEventListener('pointermove', () => { lastInput = Date.now(); }, { passive: true });
+addEventListener('wheel', () => { lastInput = Date.now(); }, { passive: true });
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) stopCalm(); });
+setInterval(() => {
+  const busy = S.photo || !$('#creator').hidden || document.querySelector('.modal:not([hidden])') || typing();
+  if (!S.calm && S.entered && !busy && store.get('calmIdle', true) && Date.now() - lastInput > CALM_IDLE) startCalm();
+}, 10000);
+$('#btn-calm').onclick = () => startCalm(true);
+
+// 🚨 신고하기: 글 + 사진 한 장(지금 화면을 찍거나 고르기) + 지금 상황(층 · 같은 층 닉네임)
+let rpImg = null, rpCtx = {};
+function setRpImg(u) { rpImg = u; $('#report-preview').hidden = !u; if (u) $('#report-preview img').src = u; }
+function openReport() {
+  const people = [...S.peers.values()].sort((a, b) => a.seat - b.seat).map((p) => `${p.seat + 1}번 ${p.pf.n}`);
+  rpCtx = { floor: S.floor, seat: S.seat + 1, reporter: S.name, people };
+  $('#report-ctx').textContent = `함께 보내는 정보: ${S.floor}층 · ${new Date().toLocaleString('ko-KR')}${people.length ? ` · 같은 층: ${people.slice(0, 8).join(', ')}${people.length > 8 ? ' 외' : ''}` : ''}`;
+  $('#report-err').textContent = '';
+  setRpImg(null);
+  openModal('report-modal');
+  setTimeout(() => $('#report-text').focus(), 50);
+}
+function shrinkFile(f) {
+  return new Promise((res, rej) => {
+    const im = new Image();
+    im.onload = () => { const k = Math.min(1, 1280 / Math.max(im.width, im.height)); const c = document.createElement('canvas'); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); URL.revokeObjectURL(im.src); res(c.toDataURL('image/jpeg', 0.75)); };
+    im.onerror = rej;
+    im.src = URL.createObjectURL(f);
+  });
+}
+$('#report-shot').onclick = () => {
+  $('#report-modal').hidden = true;
+  requestAnimationFrame(() => {
+    try { setRpImg(snapCanvas(1280).toDataURL('image/jpeg', 0.75)); } catch { toast('화면을 담지 못했어요. 사진 고르기를 써 주세요'); }
+    $('#report-modal').hidden = false;
+  });
+};
+$('#report-file').onchange = async (e) => {
+  const f = e.target.files?.[0];
+  e.target.value = '';
+  if (!f) return;
+  try { setRpImg(await shrinkFile(f)); } catch { $('#report-err').textContent = '사진을 읽지 못했어요. 다른 사진을 골라 주세요'; }
+};
+$('#report-clear').onclick = () => setRpImg(null);
+$('#report-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const text = $('#report-text').value.trim();
+  if (!text && !rpImg) { $('#report-err').textContent = '내용을 쓰거나 사진을 담아 주세요'; return; }
+  if (!RELAY_URL) { $('#report-err').textContent = '지금은 서버에 연결되지 않아 보낼 수 없어요'; return; }
+  $('#report-err').textContent = '';
+  const btn = $('#report-form button[type="submit"]');
+  btn.disabled = true;
+  try {
+    const r = await fetch(`${RELAY_URL}/report`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, img: rpImg, ctx: rpCtx }) });
+    if (r.status === 429) throw new Error('잠시 뒤에 다시 보내 주세요 (한 시간에 5번까지)');
+    if (!r.ok) throw new Error('보내지 못했어요. 잠시 뒤 다시 해 주세요');
+    closeModal('report-modal');
+    $('#report-text').value = '';
+    setRpImg(null);
+    toast('신고를 보냈어요. 관리자가 확인할게요');
+  } catch (err) {
+    $('#report-err').textContent = err.message;
+  } finally {
+    btn.disabled = false;
+  }
+};
+$('#pf-name').onclick = () => { closeModal('prefs-modal'); openCreator(); };
+$('#pf-snd').onclick = (e) => { e.stopPropagation(); closeModal('prefs-modal'); setSoundOpen(true); };
+$('#pf-others').onchange = (e) => { setOthersMemo(e.target.checked); toast(e.target.checked ? '다른 분 말풍선을 다시 보여요' : '다른 분 말풍선을 숨겼어요'); };
+$('#pf-sound').onchange = (e) => store.set('autoSound', e.target.checked);
+$('#pf-lite').onchange = (e) => { store.set('lite', e.target.checked); applyLite(e.target.checked); };
 
 // ───────── 연습용 가짜 동료 (?demo=12) ─────────
 function demo(n) {
@@ -1705,10 +2127,10 @@ function demo(n) {
     { c: 'pink', ch: 'wine', mon: 'l', kb: 'basic', chair: 'basic', it: ['cactus', 'frame', 'clock', 'drip', 'lego', 'globe'] },
   ];
   S.seat = 7;
-  const outfits = OUTFITS.filter((o) => !o.hidden);
+  const outfits = OUTFITS;
   for (let i = 0; i < n; i++) {
     const id = 'demo' + i;
-    const look = { body: BODIES[i % BODIES.length].id, type: CHAR_TYPES[i % CHAR_TYPES.length].id, gender: i % 3 ? 'm' : 'f', skin: SKIN_TONES[i % 5], outfit: outfits[(i * 7) % outfits.length].id, acc: ACCESSORIES[(i * 3) % ACCESSORIES.length].id, pet: PET_IDS[(i * 5) % PET_IDS.length] };
+    const look = { body: BODIES[i % BODIES.length].id, type: CHAR_TYPES[i % CHAR_TYPES.length].id, gender: i % 3 ? 'm' : 'f', skin: SKIN_TONES[i % 5], outfit: outfits[(i * 3) % outfits.length].id, oc: OUTFIT_COLORS[(i * 5) % OUTFIT_COLORS.length].id, acc: ACCESSORIES[(i * 3) % ACCESSORIES.length].id, pet: PET_IDS[(i * 5) % PET_IDS.length] };
     const pf = { n: randomName(), look, memos: memoSets[i % memoSets.length], links: links[i % 3], desk: decks[i % decks.length], mm: i % 4 === 1 ? 'one' : 'auto', mi: 0, lv: 1 + ((i * 3) % 9) };
     const seat = i >= 7 ? i + 1 : i;
     addOrUpdatePeer(id, pf, seat);
@@ -1734,6 +2156,7 @@ function frame() {
     tickScreens(dt);
     office.tickDesks(now / 1000);
   }
+  stepFireworks(dt);
   placeCamera(dt);
   renderer.render(scene, camera);
 }
@@ -1753,7 +2176,7 @@ function updateMe(dt) {
     stopTour();
     tripToken++; // 걸어가던 동작은 멈춰요
     hideMarker();
-    if (S.sitting) standUp();
+    if (S.sitting) standUp(); leaveSofa();
     const fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw);
     const rx = Math.cos(cam.yaw), rz = -Math.sin(cam.yaw);
     let dx = rx * ix + fx * -iz, dz = rz * ix + fz * -iz;
@@ -1817,4 +2240,4 @@ async function boot() {
 boot();
 
 // 시험용
-if (Q.has('debug')) window.__S = { S, cam, net, scene, camera, openCard, openDesk, openFloors, openCreator, peek, enter, moveToSeat, doAct, setMemoMode, refreshAllScreens, get office() { return office; }, get me() { return me; } };
+if (Q.has('debug')) window.__S = { S, cam, net, scene, camera, goSofa, openCard, openDesk, openFloors, openCreator, peek, enter, moveToSeat, doAct, setMemoMode, refreshAllScreens, get office() { return office; }, get me() { return me; } };

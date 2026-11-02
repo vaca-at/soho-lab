@@ -23,19 +23,22 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="style.css?v=20261101u">
+<link rel="stylesheet" href="style.css?v=20261102d">
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
-  "./js/data.js": "./js/data.js?v=20261101u",
-  "./js/blocky.js": "./js/blocky.js?v=20261101u",
-  "./js/avatar.js": "./js/avatar.js?v=20261101u",
-  "./js/world.js": "./js/world.js?v=20261101u",
-  "./js/net.js": "./js/net.js?v=20261101u",
-  "./js/badwords.js": "./js/badwords.js?v=20261101u",
-  "./js/todo.js": "./js/todo.js?v=20261101u",
-  "./js/sound.js": "./js/sound.js?v=20261101u"
+  "./js/data.js": "./js/data.js?v=20261102d",
+  "./js/blocky.js": "./js/blocky.js?v=20261102d",
+  "./js/avatar.js": "./js/avatar.js?v=20261102d",
+  "./js/world.js": "./js/world.js?v=20261102d",
+  "./js/net.js": "./js/net.js?v=20261102d",
+  "./js/badwords.js": "./js/badwords.js?v=20261102d",
+  "./js/todo.js": "./js/todo.js?v=20261102d",
+  "./js/sound.js": "./js/sound.js?v=20261102d",
+  "./js/album.js": "./js/album.js?v=20261102d",
+  "./js/fx.js": "./js/fx.js?v=20261102d",
+  "./js/badges.js": "./js/badges.js?v=20261102d"
 } }
 </script>
 </head>
@@ -72,7 +75,9 @@
       <div class="group"><h3>성별</h3><div id="opt-gender" class="chips"></div></div>
       <div class="group"><h3>피부색</h3><div id="opt-skin" class="swatches"></div></div>
       <div class="group"><h3>머리 스타일</h3><div id="opt-type" class="chips"></div></div>
+      <div class="group"><h3>머리색 <small class="muted" id="hc-name"></small></h3><div id="opt-hc" class="swatches"></div></div>
       <div class="group"><h3>옷</h3><div id="opt-outfit" class="chips"></div></div>
+      <div class="group"><h3>옷 색 <small class="muted" id="oc-name"></small></h3><div id="opt-oc" class="swatches"></div></div>
       <div class="group"><h3>소품</h3><div id="opt-acc" class="chips"></div></div>
       <div class="group"><h3>책상 친구</h3><div id="opt-pet" class="chips"></div></div>
       <button id="creator-done" class="primary wide"><span class="lbl">이 모습으로 일하기</span></button>
@@ -186,7 +191,7 @@
 <div id="fridge-modal" class="modal" hidden>
   <div class="sheet">
     <header class="panel-head"><h2>음료 냉장고</h2><button class="icon-btn" data-close="fridge-modal" aria-label="닫기">✕</button></header>
-    <p class="sub">무알콜 맥주 · 콜라 · 사이다 <b class="free">무제한 무료</b>예요. 고르면 냉장고까지 걸어가서 꺼내 마셔요.</p>
+    <p class="sub">웰치스 포도 · 콜라 · 사이다 <b class="free">무제한 무료</b>예요. 고르면 냉장고까지 걸어가서 꺼내 마셔요.</p>
     <div id="fridge-list" class="fridge-list"></div>
   </div>
 </div>
@@ -202,6 +207,57 @@
 </div>
 
 <!-- 사용 안내 -->
+<!-- 내 기록: 이 브라우저에만 쌓여요 -->
+<div id="stats-modal" class="modal" hidden>
+  <div class="sheet stats-sheet">
+    <header class="panel-head"><h2>내 기록</h2><button class="icon-btn" data-close="stats-modal" aria-label="닫기">✕</button></header>
+    <div id="st-cards" class="st-cards"></div>
+    <h3 class="st-h">최근 7일 집중</h3>
+    <div id="st-week" class="st-week"></div>
+    <h3 class="st-h">배지 <small id="st-badge-n"></small></h3>
+    <div id="st-badges" class="st-badges"></div>
+    <h3 class="st-h">내 사진 <small id="st-photo-n"></small></h3>
+    <div id="st-photos" class="st-photos"></div>
+    <p class="st-note">책상에 앉아 있던 시간이 집중 시간이에요. 기록과 사진은 이 브라우저에만 남아요.</p>
+  </div>
+</div>
+<!-- 개인 및 환경 설정 -->
+<div id="prefs-modal" class="modal" hidden>
+  <div class="sheet prefs-sheet">
+    <header class="panel-head"><h2>개인 및 환경 설정</h2><button class="icon-btn" data-close="prefs-modal" aria-label="닫기">✕</button></header>
+    <div class="pf-row"><label for="pf-name">닉네임</label><button type="button" id="pf-name" class="pf-link"></button></div>
+    <label class="pf-row"><span>다른 분 말풍선 보기<small>끄면 내 말풍선만 보여요</small></span><input type="checkbox" id="pf-others" class="pf-sw"></label>
+    <label class="pf-row"><span>들어오면 소리 켜기<small>처음 화면을 누를 때 고른 소리가 나와요</small></span><input type="checkbox" id="pf-sound" class="pf-sw"></label>
+    <label class="pf-row"><span>정각 종소리<small>매시 정각에 "띵" (소리를 켠 분만)</small></span><input type="checkbox" id="pf-chime" class="pf-sw"></label>
+    <label class="pf-row"><span>5분 쉬면 바탕화면<small>손대지 않으면 단추를 숨기고 사무실을 둘러봐요</small></span><input type="checkbox" id="pf-calm" class="pf-sw"></label>
+    <label class="pf-row"><span>화면 가볍게<small>노트북이 뜨겁거나 느릴 때 켜 주세요</small></span><input type="checkbox" id="pf-lite" class="pf-sw"></label>
+    <div class="pf-row"><span>배경음악 · 배경음<small>🎵 소리 단추에서 골라요</small></span><button type="button" id="pf-snd" class="pf-link">고르기 ›</button></div>
+  </div>
+</div>
+<!-- 신고하기 -->
+<div id="report-modal" class="modal" hidden>
+  <form class="sheet" id="report-form">
+    <header class="panel-head"><h2>신고하기</h2><button type="button" class="icon-btn" data-close="report-modal" aria-label="닫기">✕</button></header>
+    <p class="sub">나쁜 닉네임 · 말풍선 · 결과물 링크를 알려 주세요. 관리자가 확인해요.</p>
+    <textarea id="report-text" maxlength="1000" rows="4" placeholder="누가 · 무엇을 · 언제 (예: 3번 자리 닉네임이 욕설이에요)"></textarea>
+    <div class="rp-row">
+      <button type="button" id="report-shot" class="small-btn">📷 지금 화면 담기</button>
+      <label class="small-btn">🖼️ 사진 고르기<input type="file" id="report-file" accept="image/*" hidden></label>
+    </div>
+    <div id="report-preview" class="rp-preview" hidden><img alt="담은 사진"><button type="button" id="report-clear" class="td-x" aria-label="사진 빼기">✕</button></div>
+    <small id="report-ctx" class="rp-ctx"></small>
+    <p id="report-err" class="rp-err" role="alert"></p>
+    <button type="submit" class="primary">보내기</button>
+  </form>
+</div>
+<!-- 내 사진 크게 보기 -->
+<div id="photo-modal" class="modal" hidden>
+  <div class="sheet wide-sheet">
+    <header class="panel-head"><h2 id="ph-title">내 사진</h2><button class="icon-btn" data-close="photo-modal" aria-label="닫기">✕</button></header>
+    <img id="ph-img" class="ph-img" alt="">
+    <div class="rp-row"><button type="button" id="ph-save" class="small-btn">⬇ 저장</button><button type="button" id="ph-del" class="small-btn danger">지우기</button></div>
+  </div>
+</div>
 <div id="guide-modal" class="modal" hidden>
   <div class="sheet">
     <header class="panel-head"><h2>소호랩 사용법</h2><button class="icon-btn" data-close="guide-modal" aria-label="닫기">✕</button></header>
@@ -212,12 +268,19 @@
       <li><b>책상 · 모니터 · 캐릭터를 누르면</b> 그 분이 지금 하는 일과 자랑하는 결과물 3개를 보고, 미리보기하거나 접속할 수 있어요.</li>
       <li><b>집중하면 레벨 업</b>: 앉아 있는 1분마다 1 XP · 1 P. 포인트로 맥미니, 맥 모니터, 에스프레소 머신 같은 책상 아이템을 사요.</li>
       <li><b>걷기</b>: W A S D · 방향키 (휴대폰은 왼쪽 아래 조이스틱). 끌어서 화면 돌리기, 휠로 멀리·가까이.</li>
-      <li><b>걸어갔다 오는 동작</b>: 물 마시기 · 바람 쐬기 · 프린트하기 · 냉장고 가기 · 커피머신 가기. 커피 바 옆 냉장고의 무알콜 맥주 · 콜라 · 사이다는 무제한 무료예요.</li>
-      <li><b>층마다 사무실이 달라요.</b> 엘리베이터를 누르면 다른 층으로 가요. 빈 책상을 누르면 그 자리로 옮겨요.</li>
+      <li><b>걸어갔다 오는 동작</b>: 물 마시기 · 바람 쐬기 · 프린트하기 · 냉장고 가기 · 커피머신 가기. 커피 바 옆 냉장고의 웰치스 포도 · 콜라 · 사이다는 무제한 무료예요.</li>
+      <li><b>층마다 사무실이 달라요.</b> 엘리베이터를 누르면 다른 층으로 가요. 빈 책상을 누르면 그 자리로 옮겨요. 창밖 하늘은 실제 시간 따라 낮 · 노을 · 밤으로 바뀌어요.</li>
+      <li><b>⛶ 바탕화면</b>: 단추를 모두 숨기고 사무실을 천천히 둘러봐요. 5분 동안 손대지 않아도 저절로 켜지고, 화면을 누르면 돌아와요. 그동안에도 집중 시간은 쌓여요.</li>
+      <li><b>📷 사진</b>: 끌어서 구도를 잡고 찰칵. 찍은 사진은 메뉴 › 내 기록에 모여요. 아래 <b>폭죽</b>은 같은 층 모두의 천장에 터져요.</li>
+      <li><b>배지</b>: 연속 출근 · 집중 시간 · 할 일 · 올빼미 같은 배지가 저절로 모여요. 메뉴 › 내 기록에서 봐요.</li>
+      <li><b>🚨 신고하기</b>: 나쁜 닉네임 · 말풍선 · 링크는 메뉴 › 신고하기로 알려 주세요.</li>
     </ul>
   </div>
 </div>
 
+<!-- 바탕화면: 단추 없이 시계와 오늘 집중만 -->
+<div id="calm-clock" class="calm-clock" aria-hidden="true"><b id="cc-time"></b><span id="cc-sub"></span></div>
+<div id="photo-flash" class="photo-flash" aria-hidden="true"></div>
 <!-- 화면 위 단추들 -->
 <section id="hud" hidden>
   <div class="hud-top">
@@ -237,14 +300,21 @@
       <button id="btn-shop" class="glass icon-btn"><span class="lbl">🪴</span><small class="cap">책상 꾸미기</small></button>
       <button id="btn-web" class="glass icon-btn"><span class="lbl">🌐</span><small class="cap">내 웹 자랑</small></button>
       <button id="btn-store" class="glass icon-btn"><span class="lbl">🛒</span><small class="cap">상점</small></button>
+      <button id="btn-photo" class="glass icon-btn" title="사진 찍기"><span class="lbl">📷</span><small class="cap">사진</small></button>
+      <button id="btn-calm" class="glass icon-btn" title="바탕화면: 단추를 숨기고 사무실 둘러보기"><span class="lbl">⛶</span><small class="cap">바탕화면</small></button>
       <button id="btn-menu" class="glass icon-btn"><span class="lbl">☰</span><small class="cap">메뉴</small></button>
     </div>
   </div>
   <div id="menu" class="glass menu" hidden>
-    <button data-menu="memo">말풍선 고치기</button>
-    <button data-menu="guide">사용법</button>
-    <button data-menu="floor">다른 층으로</button>
-    <button data-menu="others" id="menu-others">다른 분 말풍선 숨기기</button>
+    <!-- 휴대폰: 위 단추줄에 다 못 들어가는 것들 -->
+    <button data-menu="btn-web" class="m-only">🌐 내 웹 자랑</button>
+    <button data-menu="btn-store" class="m-only">🛒 상점</button>
+    <button data-menu="btn-photo" class="m-only">📷 사진 찍기</button>
+    <button data-menu="btn-calm" class="m-only m-last">⛶ 바탕화면</button>
+    <button data-menu="stats">📊 내 기록 보기</button>
+    <button data-menu="prefs">⚙️ 개인 및 환경 설정</button>
+    <button data-menu="guide">📖 소호랩 사용법</button>
+    <button data-menu="report" class="menu-report">🚨 신고하기</button>
   </div>
   <!-- 같은 층 사람: 닉네임 · 자리 · 지금 하는 일 -->
   <div id="people-pop" class="glass people-pop" role="dialog" aria-label="이 층에 있는 사람" hidden>
@@ -260,6 +330,12 @@
     <p class="snd-note">모두 브라우저에서 바로 만드는 소리예요. 저작권 걱정 없어요.</p>
   </div>
   <div id="toasts"></div>
+  <!-- 사진 찍기: 단추를 모두 숨기고 끌어서 구도 잡기 -->
+  <div id="photo-bar" class="glass photo-bar" hidden>
+    <span>끌어서 구도 잡기 · 휠로 가까이</span>
+    <button type="button" id="photo-shoot" class="shutter" aria-label="찰칵">●</button>
+    <button type="button" id="photo-close" class="small-btn">닫기</button>
+  </div>
   <div id="feed" class="feed" aria-live="polite" aria-label="같은 층 알림"></div>
   <div class="bottom">
     <div id="memo-bar" class="glass memo-bar"></div>
@@ -286,6 +362,6 @@
   <div id="joystick"><div class="knob"></div></div>
 </section>
 
-<script type="module" src="js/main.js?v=20261101u"></script>
+<script type="module" src="js/main.js?v=20261102d"></script>
 </body>
 </html>

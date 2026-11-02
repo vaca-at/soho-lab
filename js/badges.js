@@ -1,0 +1,23 @@
+// 배지: 이 브라우저에 쌓인 기록(집중 · 할 일 · 동작 횟수 · 사진)으로 저절로 모여요. 서버로 보내지 않아요.
+// c = { days: [{d, s}] 날짜별 집중 초, streak, best(가장 길게 앉은 날 초), lv, done(끝낸 할 일), cnt{…}, photos, links }
+export const BADGES = [
+  { id: 'first', icon: '🪪', name: '첫 출근', cap: '책상에 1분 앉기', ok: (c) => c.days.length > 0 },
+  { id: 'hour1', icon: '⏱️', name: '한 시간 집중', cap: '하루 1시간', ok: (c) => c.best >= 3600 },
+  { id: 'hour4', icon: '🔥', name: '불타는 하루', cap: '하루 4시간', ok: (c) => c.best >= 4 * 3600 },
+  { id: 'hour8', icon: '🏭', name: '풀타임', cap: '하루 8시간', ok: (c) => c.best >= 8 * 3600 },
+  { id: 'streak3', icon: '📅', name: '사흘 연속', cap: '3일 연속 출근', ok: (c) => c.streak >= 3 },
+  { id: 'streak7', icon: '🗓️', name: '일주일 개근', cap: '7일 연속 출근', ok: (c) => c.streak >= 7 },
+  { id: 'night', icon: '🦉', name: '올빼미', cap: '새벽 1~5시에 집중', ok: (c) => c.cnt.night > 0 },
+  { id: 'early', icon: '🐓', name: '얼리버드', cap: '아침 5~8시에 집중', ok: (c) => c.cnt.early > 0 },
+  { id: 'todo10', icon: '✅', name: '할 일 10개', cap: '할 일 10개 끝내기', ok: (c) => c.done >= 10 },
+  { id: 'todo100', icon: '🏆', name: '할 일 100개', cap: '할 일 100개 끝내기', ok: (c) => c.done >= 100 },
+  { id: 'lv5', icon: '⭐', name: '레벨 5', cap: 'Lv 5 되기', ok: (c) => c.lv >= 5 },
+  { id: 'lv10', icon: '🌟', name: '레벨 10', cap: 'Lv 10 되기', ok: (c) => c.lv >= 10 },
+  { id: 'coffee', icon: '☕', name: '카페인 충전', cap: '커피머신 10번', ok: (c) => c.cnt.coffee >= 10 },
+  { id: 'fridge', icon: '🧊', name: '냉장고 탐험가', cap: '음료 세 가지 다 마시기', ok: (c) => c.cnt.grape > 0 && c.cnt.cola > 0 && c.cnt.cider > 0 },
+  { id: 'fw', icon: '🎆', name: '배포 축하', cap: '폭죽 터뜨리기', ok: (c) => c.cnt.fw > 0 },
+  { id: 'photo', icon: '📸', name: '찰칵', cap: '사진 한 장 찍기', ok: (c) => c.photos > 0 },
+  { id: 'show', icon: '🌐', name: '결과물 자랑', cap: '내 웹 올리기', ok: (c) => c.links > 0 },
+  { id: 'tour', icon: '🚶', name: '사무실 한 바퀴', cap: '한 바퀴 걷기', ok: (c) => c.cnt.tour > 0 },
+];
+export const earned = (c) => BADGES.filter((b) => { try { return b.ok(c); } catch { return false; } });

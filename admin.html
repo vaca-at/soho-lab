@@ -178,7 +178,7 @@
 
 <script type="module">
   import { RELAY_URL, FIREBASE, FLOORS, SEATS, FLOOR_THEMES } from './js/data.js';
-  const THEME_NAMES = { loft: '브루클린 로프트', class: '우리 반 교실', white: '화이트 미니멀', neon: '사이버 네온', forest: '숲속 온실', nordic: '북유럽 파스텔', hanok: '한옥 대청마루', space: '우주정거장', cafe: '루프탑 카페', library: '서재 도서관', beach: '바닷가 오피스' };
+  const THEME_NAMES = { loft: '브루클린 로프트', class: '우리 반 교실', lab: '학교 전산실', white: '화이트 미니멀', neon: '사이버 네온', forest: '숲속 온실', nordic: '북유럽 파스텔', hanok: '한옥 대청마루', space: '우주정거장', cafe: '루프탑 카페', library: '서재 도서관', beach: '바닷가 오피스' };
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const num = (n) => Number(n || 0).toLocaleString('ko-KR');

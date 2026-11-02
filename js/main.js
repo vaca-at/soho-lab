@@ -4,7 +4,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
   RELAY_URL, SITE, FLOORS, SEATS, MAX_MEMOS, MAX_LINKS, MAX_ITEMS, LIMITS, SKIN_TONES, BODIES, CHAR_TYPES, hairName, HAIR_COLORS, GENDERS, OUTFITS, OUTFIT_COLORS, ACCESSORIES, ACTIONS,
   PET_IDS, NEW_PETS, DESK_COLORS, CHAIR_COLORS, MONITORS, KEYBOARDS, CHAIRS, DESK_ITEMS, TIERS, SHOP, shopKey, FREE_OWNED, levelOf, xpForLevel,
-  MEMO_MODES, FLOOR_THEMES, randomName, defaultLook, fixLook, fixProfile, defaultDesk, safeUrl, hostOf,
+  MEMO_MODES, FLOOR_THEMES, START_FLOOR, randomName, defaultLook, fixLook, fixProfile, defaultDesk, safeUrl, hostOf,
 } from './data.js';
 import { PETS } from './blocky.js';
 import { Avatar, FONT } from './avatar.js';
@@ -865,11 +865,10 @@ const net = new Net({
 
 // ───────── 출근 · 층 바꾸기 ─────────
 async function pickDefaultFloor() {
-  const saved = clampFloor(store.get('floor', 0));
   const counts = await net.counts();
-  if (!counts) return saved || 1;
-  // 이전 층에 자리가 있으면 그대로, 아니면 사람이 가장 많은(자리 남은) 층
-  if (saved && counts[saved - 1] < SEATS) return saved;
+  if (!counts) return START_FLOOR;
+  // 처음 들어오면 모두 3층(START_FLOOR)으로. 3층이 다 찼으면 사람이 가장 많은(자리 남은) 층
+  if (counts[START_FLOOR - 1] < SEATS) return START_FLOOR;
   let best = 1, bestN = -1;
   counts.forEach((n, i) => { if (n < SEATS && n > bestN) { best = i + 1; bestN = n; } });
   return best;

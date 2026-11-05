@@ -1106,10 +1106,16 @@ function renderActions() {
   });
   el.append(seatBox);
   // 아래 막대: 제자리 동작 · 오른쪽 세로 메뉴: [자리 이동] 따로 + 걸어갔다 오는 동작 (냉장고는 음료 고르기)
-  $('#btn-seat').onclick = openSeats;
   $('#btn-browse').onclick = () => openShowcase(null);
   const left = $('#walk-acts');
   left.innerHTML = '';
+  // 세로 메뉴 맨 위: 자리 이동 (1~20번 자리표)
+  const seatB = document.createElement('button');
+  seatB.type = 'button';
+  seatB.className = 'side-btn seat-move';
+  seatB.innerHTML = '<span>🪑 자리 이동</span><small class="cap">1~20번 고르기</small>';
+  seatB.onclick = openSeats;
+  left.append(seatB);
   // 오른쪽 걸어갔다 오는 동작은 글자 수 짧은 것부터
   const len = (a) => (a.trip || a.fridge || a.sofa ? a.name.replace(/\s/g, '').length : 0);
   for (const a of ACTIONS.filter((x) => !x.auto && x.pose !== true && !x.hidden).sort((p, q) => len(p) - len(q))) {
@@ -1545,7 +1551,7 @@ function renderShop() {
 function renderXp() {
   const L = lv(), a = xpForLevel(L), b = xpForLevel(L + 1);
   const pct = Math.round(((S.xp - a) / (b - a)) * 100);
-  $('#xp-chip').innerHTML = `<b>Lv ${L}</b><span class="xp-bar"><i style="width:${pct}%"></i></span><span>${S.pts.toLocaleString()} P</span>`;
+  $('#xp-row').innerHTML = `<b>Lv ${L}</b><span class="xp-bar"><i style="width:${pct}%"></i></span><span>${S.pts.toLocaleString()} P</span>`;
   $('#xp-chip').title = `경험치 ${S.xp} · 다음 레벨까지 ${b - S.xp}분 집중`;
   const sw = $('#shop-wallet');
   if (sw) sw.innerHTML = `<b>Lv ${L}</b> · 다음 레벨까지 ${b - S.xp}분 · <b class="pts">${S.pts.toLocaleString()} P</b>`;

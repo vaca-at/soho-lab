@@ -202,8 +202,15 @@ button .cap { display: block; font-size: 10.5px; line-height: 1.3; font-weight: 
 .act .cap { font-size: 10px; font-weight: 400; margin: 0; }
 .act:hover { background: rgba(255, 255, 255, .08); }
 .act.sit { background: rgba(255, 179, 92, .16); color: #ffd7a8; }
-#joystick { position: absolute; left: max(18px, env(safe-area-inset-left)); bottom: calc(max(14px, env(safe-area-inset-bottom)) + 120px); width: 104px; height: 104px; border-radius: 50%; background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .25); display: none; touch-action: none; }
-#joystick .knob { position: absolute; left: 32px; top: 32px; width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 255, 255, .6); }
+/* 조이스틱: 왼쪽 아래, 아래 막대 바로 위. 동그라미 + 네 방향 화살표 */
+#joystick { position: absolute; left: max(16px, env(safe-area-inset-left)); bottom: calc(max(12px, env(safe-area-inset-bottom)) + var(--bottom-h, 124px) + 14px); width: 112px; height: 112px; border-radius: 50%; display: none; touch-action: none;
+  background: radial-gradient(circle, rgba(255, 255, 255, .04) 0 34%, rgba(255, 255, 255, .1) 35% 100%); border: 1.5px solid rgba(255, 255, 255, .3); box-shadow: 0 6px 20px rgba(0, 0, 0, .3); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+#joystick .knob { position: absolute; left: 34px; top: 34px; width: 44px; height: 44px; border-radius: 50%; background: radial-gradient(circle at 38% 35%, #fff, rgba(225, 230, 240, .85) 60%, rgba(180, 186, 200, .8)); box-shadow: 0 3px 10px rgba(0, 0, 0, .4); }
+#joystick .ar { position: absolute; width: 0; height: 0; border: 6px solid transparent; opacity: .55; }
+#joystick .ar.up { left: 50%; top: 7px; margin-left: -6px; border-bottom-color: #fff; border-top-width: 0; }
+#joystick .ar.dn { left: 50%; bottom: 7px; margin-left: -6px; border-top-color: #fff; border-bottom-width: 0; }
+#joystick .ar.lf { top: 50%; left: 7px; margin-top: -6px; border-right-color: #fff; border-left-width: 0; }
+#joystick .ar.rt { top: 50%; right: 7px; margin-top: -6px; border-left-color: #fff; border-right-width: 0; }
 @media (pointer: coarse) { #joystick { display: block; } }
 
 @media (max-width: 760px) {
@@ -345,7 +352,7 @@ button .cap { display: block; font-size: 10.5px; line-height: 1.3; font-weight: 
 .b-links { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
 #fb-text { font: inherit; font-size: 15px; color: var(--text); padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line-2); background: rgba(0, 0, 0, .25); resize: vertical; }
 @media (max-width: 760px) {
-  .side-acts { width: auto; top: auto; transform: none; bottom: calc(max(12px, env(safe-area-inset-bottom)) + 136px); }
+  .side-acts { width: auto; top: auto; transform: none; bottom: calc(max(12px, env(safe-area-inset-bottom)) + var(--bottom-h, 124px) + 14px); }
   .side-acts.left { left: auto; right: max(12px, env(safe-area-inset-right)); bottom: calc(max(12px, env(safe-area-inset-bottom)) + 300px); }
   .side-btn .cap { display: none; }
   .side-btn { padding: 7px 9px; font-size: 12px; }
@@ -740,7 +747,8 @@ body.calm { cursor: none; }
 .calm-fab:hover { box-shadow: inset 0 0 0 1.5px #c9a24a, 0 0 12px rgba(201, 162, 74, .3); }
 .calm-fab:hover svg { stroke: #ffd7a8; }
 /* 좁은 화면: 오른쪽은 동작 메뉴, 왼쪽 아래는 조이스틱이라 그 위 왼쪽으로 */
-@media (max-width: 1000px) { .calm-fab { right: auto; left: max(18px, env(safe-area-inset-left)); bottom: calc(max(14px, env(safe-area-inset-bottom)) + 236px); width: 42px; height: 42px; } }
+@media (max-width: 1000px) { .calm-fab { right: auto; left: max(18px, env(safe-area-inset-left)); bottom: calc(max(12px, env(safe-area-inset-bottom)) + var(--bottom-h, 124px) + 14px); width: 42px; height: 42px; } }
+@media (max-width: 1000px) and (pointer: coarse) { .calm-fab { left: calc(max(16px, env(safe-area-inset-left)) + 35px); bottom: calc(max(12px, env(safe-area-inset-bottom)) + var(--bottom-h, 124px) + 140px); } }
 
 /* 🌐 새 웹 결과물 알림 카드: 누를 수 있게, 민트 테두리 */
 #toasts .web-toast { pointer-events: auto; display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 12px; border-radius: 16px; border-color: rgba(95, 211, 168, .6); box-shadow: 0 0 18px rgba(95, 211, 168, .28); }
@@ -750,3 +758,19 @@ body.calm { cursor: none; }
 .web-toast .wt-text small { color: var(--soft); font-size: 12px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .web-toast button { flex: none; padding: 7px 12px; border-radius: 10px; background: #5fd3a8; color: #0d2a20; font-weight: 700; font-size: 13px; cursor: pointer; }
 .web-toast button:hover { background: #7fe0bc; }
+
+/* 휴대폰 세로 메뉴 접기 · 한 바퀴 (컴퓨터에선 안 보여요) */
+.side-fold, #walk-acts .tour-m { display: none; }
+@media (max-width: 760px) {
+  .side-fold { display: flex; justify-content: space-between; align-items: center; gap: 8px; justify-self: end; padding: 8px 11px; border-radius: 12px; font-size: 12.5px; font-weight: 700; color: #ffd7a8; }
+  .side-fold i { font-style: normal; color: var(--soft); font-size: 11px; }
+  #left-acts.folded #walk-acts { display: none; }
+  #walk-acts .tour-m { display: grid; }
+  /* 오늘 집중 시간 글씨: 휴대폰에서 조금 크게 */
+  .xp-focus { font-size: 12px; }
+}
+/* 설정: 기록 옮기기 */
+.pf-row .pf-btns { display: flex; gap: 14px; flex: none; white-space: nowrap; }
+.pf-move { display: grid; gap: 8px; padding: 0 2px 12px; }
+.pf-move textarea { font: 12px/1.4 var(--mono); color: var(--text); padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line-2); background: rgba(0, 0, 0, .25); resize: vertical; word-break: break-all; }
+.pf-move[hidden], #pf-code-go[hidden] { display: none; }

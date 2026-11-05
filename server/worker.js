@@ -34,6 +34,7 @@ async function ogInfo(u) {
   };
 }
 
+let countsCache = null;   // /counts 10초 기억 (워커 하나 안에서)
 export default {
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
@@ -62,9 +63,13 @@ export default {
     }
     if (url.pathname === '/counts') {
       const n = Math.min(FLOORS, Math.max(1, +url.searchParams.get('n') || FLOORS));
-      const counts = await Promise.all(Array.from({ length: n }, (_, i) =>
-        env.ROOMS.get(env.ROOMS.idFromName(`floor-${i + 1}`)).fetch('https://room/count').then((r) => r.json()).then((j) => j.n).catch(() => 0)));
-      return json(req, { counts, cap: CAP });
+      // 모두가 1~2분마다 물어봐요 → 10초 동안은 같은 답을 돌려줘서 층 서버를 덜 깨워요
+      if (!countsCache || Date.now() - countsCache.at > 10000) {
+        const all = await Promise.all(Array.from({ length: FLOORS }, (_, i) =>
+          env.ROOMS.get(env.ROOMS.idFromName(`floor-${i + 1}`)).fetch('https://room/count').then((r) => r.json()).then((j) => j.n).catch(() => 0)));
+        countsCache = { at: Date.now(), all };
+      }
+      return json(req, { counts: countsCache.all.slice(0, n), cap: CAP });
     }
     // 방문: 하루 숫자만 센다 (누가 왔는지는 남기지 않음)
     if (url.pathname === '/visit' && req.method === 'POST') {

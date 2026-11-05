@@ -23,7 +23,7 @@ const $$ = (s) => [...document.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const store = {
   get(k, d) { try { const v = localStorage.getItem('soho.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
-  set(k, v) { try { localStorage.setItem('soho.' + k, JSON.stringify(v)); } catch {} },
+  set(k, v) { if (store.locked) return; try { localStorage.setItem('soho.' + k, JSON.stringify(v)); } catch {} },   // 기록을 불러오는 동안엔 안 써요
 };
 const clampFloor = (n) => (Number.isInteger(n) && n >= 1 && n <= FLOORS ? n : 0);
 const lerpAngle = (a, b, t) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * t;
@@ -516,6 +516,18 @@ function scrollHint(el) {
 }
 scrollHint(document.getElementById('actions'));
 scrollHint(document.getElementById('memo-bar'));
+// 휴대폰: 오른쪽 세로 메뉴를 접고 펴요 (처음엔 접힌 채, 고른 건 기억해요)
+{
+  const fold = $('#side-fold'), col = $('#left-acts');
+  const set = (open) => { col.classList.toggle('folded', !open); fold.setAttribute('aria-expanded', String(open)); fold.querySelector('i').textContent = open ? '▾' : '▸'; };
+  set(store.get('sideOpen', false));
+  fold.onclick = () => { const open = col.classList.contains('folded'); set(open); store.set('sideOpen', open); };
+}
+// 아래 막대 높이를 재서 조이스틱 · 세로 메뉴 · 바탕화면 단추를 그 바로 위에 둬요
+{
+  const bottom = document.querySelector('#hud .bottom');
+  if (bottom && 'ResizeObserver' in window) new ResizeObserver(() => document.documentElement.style.setProperty('--bottom-h', `${Math.round(bottom.getBoundingClientRect().height)}px`)).observe(bottom);
+}
 // 알림 기록은 왼쪽 위 칩들 바로 아래에서 시작해요 (좁은 화면에서 칩이 두 줄이 돼도 안 겹치게)
 {
   const top = document.querySelector('.hud-left');
@@ -905,7 +917,7 @@ async function updateOnline() {
 }
 $('#online-chip').onclick = () => openFloors();
 if (!RELAY_URL) $('#online-chip').hidden = true;
-setInterval(updateOnline, 60000);
+setInterval(updateOnline, 90000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) updateOnline(); });
 
 // 같은 층 사람 목록: 위 ● 9/20 을 누르면 닉네임 · 자리 · 지금 하는 일. 누르면 그 분 책상 보기
@@ -1116,6 +1128,13 @@ function renderActions() {
   seatB.innerHTML = '<span>🪑 자리 이동</span><small class="cap">1~20번 고르기</small>';
   seatB.onclick = openSeats;
   left.append(seatB);
+  // 휴대폰에서만: 사무실 한 바퀴 (아래 막대엔 [내 자리로]만 있어요)
+  const tourB = document.createElement('button');
+  tourB.type = 'button';
+  tourB.className = 'side-btn tour-m';
+  tourB.innerHTML = `<span>🚶 ${touring ? '한 바퀴 그만' : '한 바퀴 돌기'}</span>`;
+  tourB.onclick = () => { if (touring) { stopTour(); goSit(); } else startTour(); renderActions(); };
+  left.append(tourB);
   // 오른쪽 걸어갔다 오는 동작은 글자 수 짧은 것부터
   const len = (a) => (a.trip || a.fridge || a.sofa ? a.name.replace(/\s/g, '').length : 0);
   for (const a of ACTIONS.filter((x) => !x.auto && x.pose !== true && !x.hidden).sort((p, q) => len(p) - len(q))) {
@@ -1520,7 +1539,7 @@ function renderShop() {
     if (kind === 'it') {
       const slots = d.it.filter((id) => !DESK_ITEMS.find((x) => x.id === id)?.spot).length;
       if (it.spot || slots < MAX_ITEMS) d.it = [...d.it, it.id];
-      else toast(`책상 위가 꽉 찼어요. 책상 꾸미기에서 하나를 치우면 놓을 수 있어요`);
+      else toast(`책상 위가 꽉 찼어요. 내 책상에서 하나를 치우면 놓을 수 있어요`);
     } else d[kind] = it.id;
     S.profile.desk = cleanDesk(d);
     saveDesk();
@@ -1530,7 +1549,7 @@ function renderShop() {
     el.innerHTML = '';
     for (const it of SHOP[kind].filter((x) => x.price > 0)) {
       const owned = S.owned.has(shopKey(kind, it.id));
-      el.append(shopCard(kind, it, false, () => { if (owned) { toast('이미 가지고 있어요. 책상 꾸미기에서 바꿔 놓을 수 있어요'); return; } equip(kind, it); renderShop(); }));
+      el.append(shopCard(kind, it, false, () => { if (owned) { toast('이미 가지고 있어요. 내 책상에서 바꿔 놓을 수 있어요'); return; } equip(kind, it); renderShop(); }));
     }
   }
   const items = $('#shop-items');
@@ -1540,7 +1559,7 @@ function renderShop() {
     const row = document.createElement('div'); row.className = 'shop-grid';
     for (const it of DESK_ITEMS.filter((x) => x.tier === tier)) {
       const owned = S.owned.has(shopKey('it', it.id));
-      row.append(shopCard('it', it, false, () => { if (owned) { toast('이미 가지고 있어요. 책상 꾸미기에서 놓거나 뺄 수 있어요'); return; } equip('it', it); renderShop(); }));
+      row.append(shopCard('it', it, false, () => { if (owned) { toast('이미 가지고 있어요. 내 책상에서 놓거나 뺄 수 있어요'); return; } equip('it', it); renderShop(); }));
     }
     items.append(row);
   }
@@ -2262,6 +2281,62 @@ $('#report-form').onsubmit = async (e) => {
   }
 };
 $('#pf-name').onclick = () => { closeModal('prefs-modal'); openCreator(); };
+// ───────── 기록 옮기기: 이 브라우저의 soho.* 기록을 압축해서 코드 한 줄로 ─────────
+const b64u = {
+  enc(u8) { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode(...u8.subarray(i, i + 0x8000)); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); },
+  dec(s) { return Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0)); },
+};
+const zipBytes = async (u8, how) => new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(how === 'z' ? new CompressionStream('deflate-raw') : new DecompressionStream('deflate-raw'))).arrayBuffer());
+async function exportCode() {
+  const o = {};
+  for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith('soho.') && k !== 'soho.visited') o[k] = localStorage.getItem(k); }
+  const raw = new TextEncoder().encode(JSON.stringify(o));
+  if ('CompressionStream' in window) return 'SOHO1.' + b64u.enc(await zipBytes(raw, 'z'));
+  return 'SOHO0.' + b64u.enc(raw);
+}
+async function importCode(code) {
+  const m = /^SOHO([01])\.([A-Za-z0-9_-]+)$/.exec(code.replace(/\s+/g, ''));
+  if (!m) throw new Error('코드 모양이 달라요. SOHO로 시작하는 코드 전체를 붙여 넣어 주세요.');
+  let bytes = b64u.dec(m[2]);
+  if (m[1] === '1') { if (!('DecompressionStream' in window)) throw new Error('이 브라우저는 코드를 풀 수 없어요. 크롬이나 사파리에서 열어 주세요.'); bytes = await zipBytes(bytes, 'u'); }
+  const o = JSON.parse(new TextDecoder().decode(bytes));
+  if (!o || typeof o !== 'object' || Array.isArray(o)) throw new Error('코드가 망가졌어요.');
+  const ents = Object.entries(o).filter(([k, v]) => /^soho\.[\w.-]{1,40}$/.test(k) && typeof v === 'string' && v.length < 200000);
+  if (!ents.length) throw new Error('코드 안에 기록이 없어요.');
+  return ents;
+}
+$('#pf-export').onclick = async () => {
+  try {
+    const code = await exportCode();
+    let ok = false;
+    try { await navigator.clipboard.writeText(code); ok = true; } catch {}
+    $('#pf-move').hidden = false;
+    $('#pf-code').value = code;
+    $('#pf-code-go').hidden = true;
+    $('#pf-move-note').textContent = ok ? '코드를 복사했어요. 다른 브라우저의 설정 → 기록 옮기기 → 코드 넣기에 붙여 넣어 주세요. (사진은 옮겨지지 않아요)' : '아래 코드를 길게 눌러 전체 복사해 주세요. 다른 브라우저의 설정 → 코드 넣기에 붙여 넣으면 돼요.';
+    if (!ok) $('#pf-code').select();
+  } catch { toast('코드를 만들지 못했어요. 잠시 뒤 다시 해 주세요'); }
+};
+$('#pf-import').onclick = () => {
+  $('#pf-move').hidden = false;
+  $('#pf-code').value = '';
+  $('#pf-code-go').hidden = false;
+  $('#pf-move-note').textContent = '불러오면 이 브라우저의 지금 기록은 코드 속 기록으로 바뀌어요.';
+  $('#pf-code').focus();
+};
+$('#pf-code-go').onclick = async () => {
+  try {
+    const ents = await importCode($('#pf-code').value);
+    const lvOf = ents.find(([k]) => k === 'soho.xp');
+    if (!confirm(`이 코드로 불러올까요?\n${lvOf ? `Lv ${levelOf(+lvOf[1] || 0)} 기록이에요. ` : ''}이 브라우저의 지금 기록은 바뀌어요.`)) return;
+    const old = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith('soho.')) old.push(k); }
+    store.locked = true;
+    old.forEach((k) => localStorage.removeItem(k));
+    for (const [k, v] of ents) localStorage.setItem(k, v);
+    toast('불러왔어요. 다시 들어갈게요');
+    setTimeout(() => location.reload(), 700);
+  } catch (err) { $('#pf-move-note').textContent = err?.message || '코드를 읽지 못했어요.'; }
+};
 $('#pf-snd').onclick = (e) => { e.stopPropagation(); closeModal('prefs-modal'); setSoundOpen(true); };
 $('#pf-others').onchange = (e) => { setOthersMemo(e.target.checked); toast(e.target.checked ? '다른 분 말풍선을 다시 보여요' : '다른 분 말풍선을 숨겼어요'); };
 $('#pf-sound').onchange = (e) => store.set('autoSound', e.target.checked);

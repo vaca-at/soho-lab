@@ -23,22 +23,22 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="style.css?v=20261105h">
+<link rel="stylesheet" href="style.css?v=20261106a">
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
-  "./js/data.js": "./js/data.js?v=20261105h",
-  "./js/blocky.js": "./js/blocky.js?v=20261105h",
-  "./js/avatar.js": "./js/avatar.js?v=20261105h",
-  "./js/world.js": "./js/world.js?v=20261105h",
-  "./js/net.js": "./js/net.js?v=20261105h",
-  "./js/badwords.js": "./js/badwords.js?v=20261105h",
-  "./js/todo.js": "./js/todo.js?v=20261105h",
-  "./js/sound.js": "./js/sound.js?v=20261105h",
-  "./js/album.js": "./js/album.js?v=20261105h",
-  "./js/fx.js": "./js/fx.js?v=20261105h",
-  "./js/badges.js": "./js/badges.js?v=20261105h"
+  "./js/data.js": "./js/data.js?v=20261106a",
+  "./js/blocky.js": "./js/blocky.js?v=20261106a",
+  "./js/avatar.js": "./js/avatar.js?v=20261106a",
+  "./js/world.js": "./js/world.js?v=20261106a",
+  "./js/net.js": "./js/net.js?v=20261106a",
+  "./js/badwords.js": "./js/badwords.js?v=20261106a",
+  "./js/todo.js": "./js/todo.js?v=20261106a",
+  "./js/sound.js": "./js/sound.js?v=20261106a",
+  "./js/album.js": "./js/album.js?v=20261106a",
+  "./js/fx.js": "./js/fx.js?v=20261106a",
+  "./js/badges.js": "./js/badges.js?v=20261106a"
 } }
 </script>
 </head>
@@ -179,7 +179,7 @@
   <div class="sheet wide-sheet">
     <header class="panel-head"><h2>상점</h2><button class="icon-btn" data-close="shop-modal" aria-label="닫기">✕</button></header>
     <p id="shop-wallet" class="wallet"></p>
-    <p class="muted small">책상에 앉아 집중한 1분마다 <b>1 XP · 1 P</b>가 쌓여요. 산 물건은 바로 내 책상에 놓이고, 책상 꾸미기에서 바꿀 수 있어요.</p>
+    <p class="muted small">책상에 앉아 집중한 1분마다 <b>1 XP · 1 P</b>가 쌓여요. 산 물건은 바로 내 책상에 놓이고, 위 🪴 내 책상에서 바꿀 수 있어요.</p>
     <div class="group"><h3>모니터</h3><div id="shop-mon" class="shop-grid"></div></div>
     <div class="group"><h3>키보드</h3><div id="shop-kb" class="shop-grid"></div></div>
     <div class="group"><h3>의자</h3><div id="shop-chair" class="shop-grid"></div></div>
@@ -232,6 +232,13 @@
     <label class="pf-row"><span>5분 쉬면 바탕화면<small>손대지 않으면 단추를 숨기고 사무실을 둘러봐요</small></span><input type="checkbox" id="pf-calm" class="pf-sw"></label>
     <label class="pf-row"><span>화면 가볍게<small>노트북이 뜨겁거나 느릴 때 켜 주세요</small></span><input type="checkbox" id="pf-lite" class="pf-sw"></label>
     <div class="pf-row"><span>배경음악 · 배경음<small>🎵 소리 단추에서 골라요</small></span><button type="button" id="pf-snd" class="pf-link">고르기 ›</button></div>
+    <!-- 기록 옮기기: 레벨 · P · 배지 · 할 일 · 꾸미기를 코드 한 줄로 (사진은 빼요) -->
+    <div class="pf-row"><span>기록 옮기기<small>다른 브라우저 · 기기에서 레벨 · P · 배지 · 할 일을 이어가요</small></span><span class="pf-btns"><button type="button" id="pf-export" class="pf-link">코드 복사</button><button type="button" id="pf-import" class="pf-link">코드 넣기</button></span></div>
+    <div id="pf-move" class="pf-move" hidden>
+      <textarea id="pf-code" rows="3" spellcheck="false" placeholder="다른 곳에서 복사한 SOHO 코드를 붙여 넣어 주세요"></textarea>
+      <p id="pf-move-note" class="muted small"></p>
+      <button type="button" id="pf-code-go" class="primary">이 코드로 불러오기</button>
+    </div>
   </div>
 </div>
 <!-- 신고하기 -->
@@ -344,6 +351,8 @@
     <nav id="actions" class="glass"></nav>
   </div>
   <div id="left-acts" class="side-acts right side-col">
+    <!-- 휴대폰: 세로 메뉴 접고 펴기 -->
+    <button type="button" id="side-fold" class="glass side-fold" aria-expanded="true" aria-controls="walk-acts"><span>🚶 이동</span><i aria-hidden="true">▾</i></button>
     <button type="button" id="btn-browse" class="glass side-seat"><span>👀 웹 둘러보기</span><small class="cap">다른 분 결과물 구경</small></button>
     <nav id="walk-acts" class="glass side-box" aria-label="걸어갔다 오기"></nav>
   </div>
@@ -360,9 +369,9 @@
     <details class="td-memo" id="td-memo-box"><summary>🗒 이날 메모</summary><textarea id="td-memo" maxlength="3000" placeholder="아이디어 · 버그 · 내일 할 것 등 자유롭게. 적으면 바로 저장돼요"></textarea></details>
     <p class="td-foot"><span>이 기기에만 저장 · 다른 분은 못 봐요</span><span id="td-saved" class="td-saved" aria-live="polite"></span></p>
   </aside>
-  <div id="joystick"><div class="knob"></div></div>
+  <div id="joystick" aria-hidden="true"><i class="ar up"></i><i class="ar dn"></i><i class="ar lf"></i><i class="ar rt"></i><div class="knob"></div></div>
 </section>
 
-<script type="module" src="js/main.js?v=20261105h"></script>
+<script type="module" src="js/main.js?v=20261106a"></script>
 </body>
 </html>

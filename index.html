@@ -23,22 +23,22 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="style.css?v=20261105e">
+<link rel="stylesheet" href="style.css?v=20261105f">
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
-  "./js/data.js": "./js/data.js?v=20261105e",
-  "./js/blocky.js": "./js/blocky.js?v=20261105e",
-  "./js/avatar.js": "./js/avatar.js?v=20261105e",
-  "./js/world.js": "./js/world.js?v=20261105e",
-  "./js/net.js": "./js/net.js?v=20261105e",
-  "./js/badwords.js": "./js/badwords.js?v=20261105e",
-  "./js/todo.js": "./js/todo.js?v=20261105e",
-  "./js/sound.js": "./js/sound.js?v=20261105e",
-  "./js/album.js": "./js/album.js?v=20261105e",
-  "./js/fx.js": "./js/fx.js?v=20261105e",
-  "./js/badges.js": "./js/badges.js?v=20261105e"
+  "./js/data.js": "./js/data.js?v=20261105f",
+  "./js/blocky.js": "./js/blocky.js?v=20261105f",
+  "./js/avatar.js": "./js/avatar.js?v=20261105f",
+  "./js/world.js": "./js/world.js?v=20261105f",
+  "./js/net.js": "./js/net.js?v=20261105f",
+  "./js/badwords.js": "./js/badwords.js?v=20261105f",
+  "./js/todo.js": "./js/todo.js?v=20261105f",
+  "./js/sound.js": "./js/sound.js?v=20261105f",
+  "./js/album.js": "./js/album.js?v=20261105f",
+  "./js/fx.js": "./js/fx.js?v=20261105f",
+  "./js/badges.js": "./js/badges.js?v=20261105f"
 } }
 </script>
 </head>
@@ -289,6 +289,7 @@
         <button id="floor-chip" class="chip-btn" title="엘리베이터: 다른 층으로"><span class="lbl"><b id="hud-floor">1F</b></span><small class="cap" id="hud-theme">눌러서 다른 층</small></button>
         <button id="people-chip" class="people-btn" aria-controls="people-pop" aria-expanded="false" title="이 층에 있는 사람"><span class="people"><i class="dot"></i><span id="hud-people">1</span>/20</span><small class="cap">누가 있나 ▾</small></button>
       </div>
+      <button id="online-chip" class="glass chip-btn online-chip" title="소호랩 전체 접속자 · 누르면 층별 인원"><span class="lbl"><i class="dot"></i>전체 <b id="hud-online">–</b>명</span><small class="cap" id="hud-online-where">층별 인원 보기</small></button>
       <button id="xp-chip" class="glass mini xp" title="집중 경험치"></button>
       <span id="focus-chip" class="glass mini" title="오늘 책상에 앉아 있던 시간"></span>
       <span id="net-chip" class="glass mini warn" hidden></span>
@@ -363,6 +364,6 @@
   <div id="joystick"><div class="knob"></div></div>
 </section>
 
-<script type="module" src="js/main.js?v=20261105e"></script>
+<script type="module" src="js/main.js?v=20261105f"></script>
 </body>
 </html>

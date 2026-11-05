@@ -891,6 +891,23 @@ function updatePeople() {
   if (!$('#people-pop').hidden) renderPeople();
 }
 
+// 전체 접속자: 1분마다 층별 인원을 받아서 '전체 N명' + 사람 많은 층 셋. 누르면 엘리베이터(층별 인원)
+async function updateOnline() {
+  if (document.hidden) return;
+  const counts = await net.counts();
+  const el = $('#online-chip');
+  if (!counts) return;
+  if (S.entered && S.floor) counts[S.floor - 1] = S.peers.size + 1;   // 내 층은 지금 보이는 인원으로
+  $('#hud-online').textContent = counts.reduce((a, b) => a + b, 0);
+  const top = counts.map((n, i) => [i + 1, n]).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  $('#hud-online-where').textContent = top.length ? top.map(([f, n]) => `${f}F ${n}`).join(' · ') : '아직 아무도 없어요';
+  el.title = '소호랩 전체 접속자 · ' + counts.map((n, i) => `${i + 1}F ${n}명`).join(', ');
+}
+$('#online-chip').onclick = () => openFloors();
+if (!RELAY_URL) $('#online-chip').hidden = true;
+setInterval(updateOnline, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) updateOnline(); });
+
 // 같은 층 사람 목록: 위 ● 9/20 을 누르면 닉네임 · 자리 · 지금 하는 일. 누르면 그 분 책상 보기
 function renderPeople() {
   const rows = [];
@@ -1034,6 +1051,7 @@ async function enter(floor) {
   cam.yaw = 0; cam.pitch = 0.42; cam.dist = 5.2 * far();
   cam.target.set(SPAWN.x, 1.2, SPAWN.z);
   S.entered = true;
+  setTimeout(updateOnline, 2500);   // 같은 층 사람들을 받은 뒤 전체 접속자
   $('#hud').hidden = false;
   $('#hud-floor').textContent = `${floor}F`;
   $('#hud-theme').textContent = office.theme.name;

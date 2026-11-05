@@ -211,6 +211,7 @@ export const DESK_ITEMS = [
   { id: 'blanket', name: '무릎담요', cap: '의자에 걸쳐 둔 체크 담요', price: 80, lv: 1, tier: 1, spot: 'chair' },
   { id: 'cushion', name: '따뜻한 방석', cap: '의자 위 온열 방석, 빨간 불', price: 120, lv: 2, tier: 1, spot: 'chair' },
   { id: 'catdoll', name: '고양이 인형', price: 80, lv: 2, tier: 1 },
+  { id: 'fishdoll', name: '물고기 봉제인형', cap: '통통한 초록 물고기, 말랑말랑', price: 80, lv: 2, tier: 1 },
   { id: 'speaker', name: '스피커', price: 90, lv: 2, tier: 1 },
   { id: 'gamepad', name: '게임패드', price: 100, lv: 2, tier: 1 },
   { id: 'globe', name: '지구본', price: 120, lv: 2, tier: 1 },

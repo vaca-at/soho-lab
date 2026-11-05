@@ -474,7 +474,7 @@ function doTrip(def) {
   const tok = ++tripToken;
   feed(S.name, def.feed);
   net.sendAct({ a: def.id });
-  const cn = { t_coffee: 'coffee', t_grape: 'grape', t_cola: 'cola', t_cider: 'cider', t_pwater: 'pwater', t_barley: 'barley', t_gtea: 'gtea' }[def.id];
+  const cn = { t_coffee: 'coffee', t_grape: 'grape', t_cola: 'cola', t_cider: 'cider', t_pwater: 'pwater', t_barley: 'barley', t_gtea: 'gtea', t_bacchus: 'bacchus', t_enblue: 'enblue', t_enblack: 'enblack' }[def.id];
   if (cn) bump(cn);
   S.walkTo = { x: sp.x, z: sp.z, t: 0, best: Infinity, stuck: 0, then: () => {
     if (tok !== tripToken) return;
@@ -488,14 +488,31 @@ function doTrip(def) {
 }
 
 // 같은 층 알림: "○○님이 박수를 쳤습니다."
-// 같은 층 알림은 왼쪽 위 기록에 계속 남아요 (최근 5줄, 새 줄이 아래)
+// 같은 층 알림은 왼쪽 위 기록에 계속 남아요 (최근 100줄, 새 줄이 아래). 위아래로 굴려 지난 기록을 봐요
+const FEED_MAX = 100;
+const feedAtEnd = (el) => el.scrollHeight - el.scrollTop - el.clientHeight < 24;
+function feedNewBtn(el) {
+  let b = el.querySelector('.feed-new');
+  if (!b) {
+    b = document.createElement('button');
+    b.type = 'button'; b.className = 'feed-new'; b.hidden = true; b.textContent = '새 알림 ↓';
+    b.onclick = () => { el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }); b.hidden = true; };
+    el.append(b);
+  }
+  if (!el._feedBound) { el._feedBound = true; el.addEventListener('scroll', () => { const nb = el.querySelector('.feed-new'); if (nb && feedAtEnd(el)) nb.hidden = true; }, { passive: true }); }
+  return b;
+}
 function feedLine(text) {
   const el = $("#feed");
+  const btn = feedNewBtn(el);
+  const stick = feedAtEnd(el);   // 맨 아래를 보고 있었을 때만 따라 내려가요
   const d = document.createElement("div");
   d.className = "feed-line";
   d.textContent = text;
-  el.append(d);
-  while (el.children.length > 5) el.firstChild.remove();
+  d.title = new Date().toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit' });
+  el.insertBefore(d, btn);
+  while (el.querySelectorAll('.feed-line').length > FEED_MAX) el.querySelector('.feed-line').remove();
+  if (stick) el.scrollTop = el.scrollHeight; else btn.hidden = false;
 }
 function feed(name, text) { if (text && S.entered) feedLine(`${name}님이 ${text}`); }
 const saidText = (m) => `'${m}'라고 말했습니다.`;
@@ -544,16 +561,46 @@ function petSvg(id) {
   </svg>`;
 }
 
-// 냉장고: 캔(웰치스 포도 · 콜라 · 사이다) · 페트병(생수 · 보리차 · 녹차) 무제한 무료
+// 박카스 그림: 작은 갈색 유리병, 금색 뚜껑, 노란 띠
+function bacchusSvg() {
+  return `<svg class="can" viewBox="0 0 60 104" aria-hidden="true">
+    <defs><linearGradient id="gbac" x1="0" x2="1"><stop offset="0" stop-color="#000" stop-opacity=".35"/><stop offset=".25" stop-color="#fff" stop-opacity=".45"/><stop offset=".38" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".4"/></linearGradient>
+    <linearGradient id="gbacm" x1="0" x2="1"><stop offset="0" stop-color="#8a6a2a"/><stop offset=".35" stop-color="#f6dc8a"/><stop offset="1" stop-color="#8a6a2a"/></linearGradient></defs>
+    <rect x="22" y="24" width="16" height="10" rx="2" fill="url(#gbacm)"/>
+    <path d="M23 34 h14 v4 C 37 42, 44 44, 44 50 L44 94 Q44 99 39 99 L21 99 Q16 99 16 94 L16 50 C 16 44, 23 42, 23 38 Z" fill="#5a2e12"/>
+    <rect x="16" y="60" width="28" height="22" fill="#f2c230"/>
+    <text x="30" y="70" text-anchor="middle" font-family="${FONT.replace(/"/g, "'")}" font-weight="800" font-size="7" fill="#7a1a12">박카스</text>
+    <text x="30" y="78" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="4.5" fill="#7a1a12">120ml</text>
+    <path d="M23 34 h14 v4 C 37 42, 44 44, 44 50 L44 94 Q44 99 39 99 L21 99 Q16 99 16 94 L16 50 C 16 44, 23 42, 23 38 Z" fill="url(#gbac)"/>
+  </svg>`;
+}
+// 에너지 드링크 그림: 길쭉한 캔, 큰 번개
+function energySvg(id) {
+  const k = { t_enblue: { body: '#1f4fb8', bolt: '#d9e3f0', t2: 'BLUE' }, t_enblack: { body: '#1a1b1f', bolt: '#7ae04a', t2: 'BLACK' } }[id];
+  const g = 'g' + id;
+  return `<svg class="can" viewBox="0 0 60 104" aria-hidden="true">
+    <defs><linearGradient id="${g}" x1="0" x2="1"><stop offset="0" stop-color="#000" stop-opacity=".45"/><stop offset=".22" stop-color="#fff" stop-opacity=".35"/><stop offset=".35" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".5"/></linearGradient>
+    <linearGradient id="${g}m" x1="0" x2="1"><stop offset="0" stop-color="#8a9098"/><stop offset=".3" stop-color="#eef0f2"/><stop offset=".7" stop-color="#b9bec6"/><stop offset="1" stop-color="#7a8088"/></linearGradient></defs>
+    <path d="M14 8 L46 8 L48 14 L48 94 L46 100 L14 100 L12 94 L12 14 Z" fill="${k.body}"/>
+    <path d="M33 20 L22 50 L29 50 L24 74 L39 42 L32 42 L37 20 Z" fill="${k.bolt}"/>
+    <text x="30" y="86" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="8" fill="#fff">ENERGY</text>
+    <text x="30" y="93" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="5" fill="${k.bolt}">${k.t2}</text>
+    <path d="M12 14 L12 94 L14 100 L46 100 L48 94 L48 14 L46 8 L14 8 Z" fill="url(#${g})"/>
+    <ellipse cx="30" cy="8" rx="16" ry="3.4" fill="url(#${g}m)" stroke="#6a7078" stroke-width=".8"/>
+  </svg>`;
+}
+
+// 냉장고 9칸: 캔(웰치스 포도 · 콜라 · 사이다) · 페트병(생수 · 보리차 · 녹차) · 박카스 · 에너지 드링크(블루 · 블랙) 무제한 무료
 function openFridge() {
   const el = $('#fridge-list');
   el.innerHTML = '';
-  for (const id of ['t_grape', 't_cola', 't_cider', 't_pwater', 't_barley', 't_gtea']) {
+  for (const id of ['t_grape', 't_cola', 't_cider', 't_pwater', 't_barley', 't_gtea', 't_bacchus', 't_enblue', 't_enblack']) {
     const def = ACTIONS.find((a) => a.id === id);
     const b = document.createElement('button');
     b.type = 'button';
     b.className = `drink ${id}`;
-    b.innerHTML = `${['t_pwater', 't_barley', 't_gtea'].includes(id) ? petSvg(id) : canSvg(id)}<b>${def.name}</b><small>무제한 무료</small>`;
+    const pic = id === 't_bacchus' ? bacchusSvg() : id.startsWith('t_en') ? energySvg(id) : ['t_pwater', 't_barley', 't_gtea'].includes(id) ? petSvg(id) : canSvg(id);
+    b.innerHTML = `${pic}<b>${def.name}</b><small>무제한 무료</small>`;
     b.onclick = () => { closeModal('fridge-modal'); doTrip(def); };
     el.append(b);
   }
@@ -975,7 +1022,7 @@ async function enter(floor) {
   else net.join(floor, -1);
   if (!RELAY_URL && !Q.has('demo')) { S.seat = 0; goSit(); refreshAllScreens(); }
   await fade(false);
-  $("#feed").innerHTML = "";
+  $("#feed").innerHTML = "";   // 층을 옮기면 기록도 새로 (새 알림 단추는 다음 줄에서 다시 만들어요)
   feedLine(`${S.name}님이 출근했어요.`);
   if (!store.get('seenGuide2', false)) { store.set('seenGuide2', true); setTimeout(() => toast('책상·모니터·캐릭터를 누르면 그 분의 작업을 볼 수 있어요', 6000), 1200); setTimeout(() => toast('앉아 있는 1분마다 1 XP · 1 P가 쌓여요. 내 책상에서 아이템을 사 보세요', 6000), 4000); }
 }

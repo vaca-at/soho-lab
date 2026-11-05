@@ -1120,14 +1120,22 @@ export function buildOffice(themeId) {
       }
       continue;
     }
-    const [c, band] = drinkC[row % 3];
-    for (let k = 0; k < 6; k++) { box(fridge, c, 0.08, 0.16, 0.08, -0.34, 0.48 + row * 0.42, -0.32 + k * 0.13); box(fridge, band, 0.081, 0.04, 0.081, -0.34, 0.5 + row * 0.42, -0.32 + k * 0.13); }
+    if (row === 0) { // 맨 아래 칸: 박카스 두 병 · 에너지 드링크 블루 · 블랙 두 캔씩
+      const y0 = 0.38 + 0.02;
+      for (let k = 0; k < 6; k++) {
+        const z = -0.32 + k * 0.13;
+        if (k < 2) { box(fridge, '#5a2e12', 0.06, 0.1, 0.06, -0.34, y0 + 0.05, z); box(fridge, '#f2c230', 0.062, 0.04, 0.062, -0.34, y0 + 0.05, z); box(fridge, '#d8b24a', 0.03, 0.03, 0.03, -0.34, y0 + 0.115, z); }
+        else { const [c, b] = k < 4 ? ['#1f4fb8', '#d9e3f0'] : ['#1a1b1f', '#7ae04a']; box(fridge, c, 0.07, 0.2, 0.07, -0.34, y0 + 0.1, z); box(fridge, b, 0.071, 0.06, 0.02, -0.34, y0 + 0.11, z + 0.0); }
+      }
+      continue;
+    }
+    for (let k = 0; k < 6; k++) { const [c, band] = drinkC[k >> 1]; box(fridge, c, 0.08, 0.16, 0.08, -0.34, 0.48 + row * 0.42, -0.32 + k * 0.13); box(fridge, band, 0.081, 0.04, 0.081, -0.34, 0.5 + row * 0.42, -0.32 + k * 0.13); }
   }
   box(fridge, '#9aa0a8', 0.04, 0.6, 0.04, -0.45, 1.1, 0.36);
   const fsign = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.5), new THREE.MeshBasicMaterial({ map: canvasTex(512, 200, (g, w, h) => {
     g.fillStyle = '#12151c'; g.fillRect(0, 0, w, h); g.strokeStyle = '#5fd3a8'; g.lineWidth = 6; g.strokeRect(6, 6, w - 12, h - 12);
     g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#5fd3a8'; g.font = `700 54px ${FONT}`; g.fillText('무제한 무료', w / 2, 62);
-    g.fillStyle = '#f1eee8'; g.font = `500 28px ${FONT}`; g.fillText('캔 음료 · 생수 · 보리차 · 녹차', w / 2, 140);
+    g.fillStyle = '#f1eee8'; g.font = `500 28px ${FONT}`; g.fillText('탄산 · 페트병 · 박카스 · 에너지', w / 2, 140);
   }), toneMapped: false }));
   fsign.rotation.y = -Math.PI / 2; fsign.position.set(-0.47, 2.35, 0); fridge.add(fsign);
   fridgeHit.userData.kind = 'fridge';

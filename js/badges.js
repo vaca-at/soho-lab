@@ -9,6 +9,7 @@ export const BADGES = [
   { id: 'streak7', icon: '🗓️', name: '일주일 개근', cap: '7일 연속 출근', ok: (c) => c.streak >= 7 },
   { id: 'night', icon: '🦉', name: '올빼미', cap: '새벽 1~5시에 집중', ok: (c) => c.cnt.night > 0 },
   { id: 'early', icon: '🐓', name: '얼리버드', cap: '아침 5~8시에 집중', ok: (c) => c.cnt.early > 0 },
+  { id: 'todo1', icon: '☑️', name: '첫 할 일', cap: '할 일 1개 끝내기', ok: (c) => c.done >= 1 },
   { id: 'todo10', icon: '✅', name: '할 일 10개', cap: '할 일 10개 끝내기', ok: (c) => c.done >= 10 },
   { id: 'todo100', icon: '🏆', name: '할 일 100개', cap: '할 일 100개 끝내기', ok: (c) => c.done >= 100 },
   { id: 'lv5', icon: '⭐', name: '레벨 5', cap: 'Lv 5 되기', ok: (c) => c.lv >= 5 },

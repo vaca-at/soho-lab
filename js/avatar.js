@@ -30,6 +30,20 @@ function canLabel(id, c, band) {
   return m;
 }
 
+// 에너지 드링크 캔 옆면: 바탕색 + 큰 번개 + ENERGY
+function energyLabel(id, c, bolt) {
+  if (canLabels.has(id)) return canLabels.get(id);
+  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 128;
+  const g = cv.getContext('2d');
+  g.fillStyle = c; g.fillRect(0, 0, 256, 128);
+  g.fillStyle = bolt; g.beginPath(); g.moveTo(140, 8); g.lineTo(104, 70); g.lineTo(128, 70); g.lineTo(110, 122); g.lineTo(158, 52); g.lineTo(132, 52); g.lineTo(150, 8); g.closePath(); g.fill();
+  g.fillStyle = '#fff'; g.font = '900 26px Arial Black, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('ENERGY', 128, 112);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+  const m = new THREE.MeshStandardMaterial({ map: t, metalness: 0.4, roughness: 0.35 });
+  canLabels.set(id, m);
+  return m;
+}
+
 export const FONT = '"IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
 
 function roundRect(g, x, y, w, h, r) {
@@ -155,6 +169,7 @@ function actionPose(action, t, base) {
       return mix(base, { aR: [-0.9 - Math.abs(Math.sin(t * 6)) * 0.25, -0.1], aL: [-0.6, 0.2], head: 0.3, hip: 0.12 }, bump(t, 0, 0.4, 3.6, 4));
     case 'can_grape': case 'can_cola': case 'can_cider':
     case 'pet_water': case 'pet_barley': case 'pet_gtea':
+    case 'bt_bacchus': case 'can_enblue': case 'can_enblack':
     case 'drink': {
       const sip = bump(t, 0.5, 1.1, 2.6, 3.2);
       return mix(base, { aR: [-0.9 - sip * 1.0, -0.15 - sip * 0.25], head: -0.12 * sip }, bump(t, 0, 0.4, 3.2, 3.6));
@@ -330,6 +345,25 @@ export class Avatar {
       can.visible = false;
       this.armR.add(can);
       this.cans[id] = can;
+    }
+    // 박카스: 작은 갈색 유리병 + 금색 뚜껑 + 노란 띠
+    {
+      const bt = new THREE.Group();
+      const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.11, 16), mat('#5a2e12', { roughness: 0.2, metalness: 0.1 })); glass.castShadow = true; bt.add(glass);
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.0372, 0.0372, 0.05, 16), mat('#f2c230', { roughness: 0.5 })); bt.add(band);
+      const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.036, 0.03, 16), mat('#5a2e12', { roughness: 0.2 })); neck.position.y = 0.07; bt.add(neck);
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.02, 14), mat('#d8b24a', { metalness: 0.7, roughness: 0.3 })); cap.position.y = 0.093; bt.add(cap);
+      bt.position.set(0, this.handY - 0.12, 0.08); bt.scale.setScalar(1.8); bt.visible = false;
+      this.armR.add(bt); this.cans.bt_bacchus = bt;
+    }
+    // 에너지 드링크: 길쭉한 캔 (블루 · 블랙), 앞면에 번개
+    for (const [id, c, bolt] of [['can_enblue', '#1f4fb8', '#d9e3f0'], ['can_enblack', '#1a1b1f', '#7ae04a']]) {
+      const can = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.24, 18), [energyLabel(id, c, bolt), mat('#c9ccd2', { metalness: 0.7, roughness: 0.3 }), mat('#9aa0a8', { metalness: 0.7, roughness: 0.3 })]);
+      body.castShadow = true; can.add(body);
+      const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.045, 0.02, 18), mat('#dfe2e6', { metalness: 0.7, roughness: 0.25 })); lid.position.y = 0.13; can.add(lid);
+      can.position.set(0, this.handY - 0.12, 0.08); can.scale.setScalar(1.6); can.visible = false;
+      this.armR.add(can); this.cans[id] = can;
     }
     // 냉장고 페트병 (생수 · 보리차 · 녹차): 비치는 몸통 속 음료 색, 가운데 띠 상표, 병목 · 뚜껑
     for (const [id, drink, label, cap] of [['pet_water', '#d6eef9', '#2f7fd0', '#2f7fd0'], ['pet_barley', '#a8672a', '#efe2bf', '#7a4a1e'], ['pet_gtea', '#b9cf63', '#2f8a4a', '#2f8a4a']]) {

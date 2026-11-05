@@ -21,5 +21,16 @@ export const BADGES = [
   { id: 'photo', icon: '📸', name: '찰칵', cap: '사진 한 장 찍기', ok: (c) => c.photos > 0 },
   { id: 'show', icon: '🌐', name: '결과물 자랑', cap: '내 웹 올리기', ok: (c) => c.links > 0 },
   { id: 'tour', icon: '🚶', name: '사무실 한 바퀴', cap: '한 바퀴 걷기', ok: (c) => c.cnt.tour > 0 },
+  // 30개로: 응원 · 펫 · 리포트 · 오래 쌓기 · 집중왕
+  { id: 'cheer', icon: '👏', name: '첫 응원', cap: '다른 분 결과물 응원하기', ok: (c) => c.cnt.cheer > 0 },
+  { id: 'cheered', icon: '🙌', name: '응원 받음', cap: '내 결과물이 응원 받기', ok: (c) => c.cnt.cheered > 0 },
+  { id: 'pet10', icon: '🐾', name: '펫 친구', cap: '내 펫과 10번 놀기', ok: (c) => c.cnt.pet >= 10 },
+  { id: 'card', icon: '🗂️', name: '한 주 정리', cap: '주간 리포트 카드 만들기', ok: (c) => c.cnt.card > 0 },
+  { id: 'photo10', icon: '🎞️', name: '사진첩', cap: '사진 10장 모으기', ok: (c) => c.photos >= 10 },
+  { id: 'total10', icon: '🧱', name: '10시간 쌓기', cap: '모두 합쳐 10시간 집중', ok: (c) => c.days.reduce((a, d) => a + d.s, 0) >= 10 * 3600 },
+  { id: 'total100', icon: '🏔️', name: '100시간 쌓기', cap: '모두 합쳐 100시간 집중', ok: (c) => c.days.reduce((a, d) => a + d.s, 0) >= 100 * 3600 },
+  { id: 'streak30', icon: '🏅', name: '한 달 개근', cap: '30일 연속 출근', ok: (c) => c.streak >= 30 },
+  { id: 'lv20', icon: '💫', name: '레벨 20', cap: 'Lv 20 되기', ok: (c) => c.lv >= 20 },
+  { id: 'king', icon: '👑', name: '이번 주 집중왕', cap: '같은 층에서 이번 주 가장 오래 집중', ok: (c) => c.cnt.king > 0 },
 ];
 export const earned = (c) => BADGES.filter((b) => { try { return b.ok(c); } catch { return false; } });

@@ -118,6 +118,19 @@ function setOffice(floor) {
   office.paintBoard(floor || 1, S.peers.size + (S.entered ? 1 : 0));
 }
 
+// ───────── 창밖 날씨: 서울 실제 날씨 (비 · 눈). 30분마다 ─────────
+// open-meteo (열쇠 없는 공개 날씨) · 위치는 서울 고정이라 내 정보는 안 보내요
+async function updateWeather() {
+  try {
+    const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=37.57&longitude=126.98&current=weather_code', { signal: AbortSignal.timeout(5000) });
+    const c = (await r.json())?.current?.weather_code ?? 0;
+    const wx = (c >= 71 && c <= 77) || c === 85 || c === 86 ? 'snow' : (c >= 51 && c <= 67) || (c >= 80 && c <= 82) || c >= 95 ? 'rain' : '';
+    if (wx !== S.wx) { S.wx = wx; applyTime(); }
+  } catch {}
+}
+setTimeout(updateWeather, 4000);
+setInterval(updateWeather, 30 * 60 * 1000);
+
 // ───────── 낮·밤 ─────────
 // 층마다 시간 · 빛이 정해져 있어요 (테마의 hour · light)
 function applyTime() {
@@ -125,7 +138,7 @@ function applyTime() {
   const T = office.theme, L = T.light || {};
   // 창밖 하늘은 실제 한국 시간대로 (낮 · 노을 · 밤). 우주 · 네온 창밖은 늘 그대로
   const h = Q.has('hour') ? +Q.get('hour') : new Date(Date.now() + 9 * 3600e3).getUTCHours();
-  office.paintSky(h);
+  office.paintSky(h, Q.get('wx') || S.wx);
   // 낮으로 꾸민 층도 밤이 되면 햇빛을 줄이고, 노을 무렵엔 붉게
   const phase = (x) => (x < 5 || x >= 19 ? 'night' : x < 7 || x >= 17 ? 'dusk' : 'day');
   const tp = phase(T.hour ?? 12), np = phase(h);
@@ -269,13 +282,14 @@ function pick(x, y) {
   if (!S.entered) return;
   const v = new THREE.Vector2((x / innerWidth) * 2 - 1, -(y / innerHeight) * 2 + 1);
   ray.setFromCamera(v, camera);
-  const targets = [...office.allClickables(), me.hit, ...[...S.peers.values()].map((p) => p.av.hit)];
+  const targets = [...office.allClickables(), me.hit, ...(me.petHit ? [me.petHit] : []), ...[...S.peers.values()].map((p) => p.av.hit)];
   // 앉아 있으면 카메라가 내 어깨 너머라 내 몸이 먼저 맞기 쉽다 → 내 몸은 다른 게 없을 때만
   const hits = ray.intersectObjects(targets, false);
   const hit = hits.find((h) => !h.object.userData.me) || hits[0];
   if (!hit) { closeCard(); walkToPoint(); return; }
   const u = hit.object.userData;
   if (u.peer) { const p = S.peers.get(u.peer); if (p) openCard(p.seat, u.peer); return; }
+  if (u.pet) { petPlay(); return; }
   if (u.me) { openCard(S.seat, 'me'); return; }
   if (u.seat !== undefined) { openCard(u.seat); return; }
   if (u.kind === 'elevator') openFloors();
@@ -764,8 +778,35 @@ const _v = new THREE.Vector3();
 // ───────── 내 정보 ─────────
 function myPf() {
   const p = S.profile;
-  return { n: S.name, look: S.look, memos: p.memos.slice(0, MAX_MEMOS), links: p.links.slice(0, MAX_LINKS), desk: p.desk, mm: S.memoMode, mi: S.memoIdx, lv: lv() };
+  return { n: S.name, look: S.look, memos: p.memos.slice(0, MAX_MEMOS), links: p.links.slice(0, MAX_LINKS), desk: p.desk, mm: S.memoMode, mi: S.memoIdx, lv: lv(), wk: weekMin() };
 }
+// 이번 주(월요일부터) 집중한 분. 같은 층 '이번 주 집중왕'에 써요
+function weekMin() {
+  const d = new Date(); let s = 0;
+  const back = (d.getDay() + 6) % 7;   // 월요일까지 며칠
+  for (let i = 0; i <= back; i++) { const x = new Date(); x.setDate(x.getDate() - i); s += store.get('focus.' + x.toLocaleDateString('sv'), 0); }
+  return Math.round(s / 60);
+}
+// 5분마다 이번 주 집중 시간이 늘었으면 알려요
+let lastWk = -1;
+setInterval(() => { if (!S.entered) return; const w = weekMin(); if (w !== lastWk) { lastWk = w; pushProfile(); } }, 5 * 60 * 1000);
+// 👑 이번 주 집중왕: 지금 이 층에 있는 사람 중 이번 주 가장 오래 집중한 분 (1시간 넘게)
+function floorKing() {
+  // 서버가 아직 wk를 안 넘겨 주면(옛 서버) 다른 분이 다 0으로 보여서 왕을 정하지 않아요
+  if (S.peers.size && ![...S.peers.values()].some((p) => p.pf.wk !== undefined)) return null;
+  let best = null, bm = 59;
+  if (S.entered) { const w = weekMin(); if (w > bm) { best = 'me'; bm = w; } }
+  for (const [id, p] of S.peers) { const w = +p.pf.wk || 0; if (w > bm) { best = id; bm = w; } }
+  return best;
+}
+function applyCrowns() {
+  const k = floorKing();
+  if (k === 'me' && S.peers.size > 0 && !store.get('cnt', {}).king) bump('king');   // 다른 분과 함께 있을 때 왕이면 배지
+  const want = (id, n) => (id === k ? '👑 ' : '') + n;
+  if (me && me.name !== want('me', S.name)) me.setName(want('me', S.name));
+  for (const [id, p] of S.peers) if (p.av.name !== want(id, p.pf.n)) p.av.setName(want(id, p.pf.n));
+}
+setInterval(applyCrowns, 60 * 1000);
 let lastSent = null, sendT = 0;
 function sendState(force) {
   if (!me) return;
@@ -899,6 +940,7 @@ function updatePeople() {
   const n = S.peers.size + (S.entered ? 1 : 0);
   $('#hud-people').textContent = n;
   office?.paintBoard(S.floor || 1, n);
+  applyCrowns();
   if (!$('#seat-modal').hidden) renderSeats();
   if (!$('#people-pop').hidden) renderPeople();
 }
@@ -927,6 +969,9 @@ function renderPeople() {
   for (const [id, p] of S.peers) rows.push({ id, seat: p.seat, name: p.pf.n, sit: !!p.st?.sit, now: nowOf(p.pf) });
   rows.sort((a, b) => (a.seat < 0) - (b.seat < 0) || a.seat - b.seat);
   $('#pp-title').innerHTML = `${S.floor || 1}F · ${rows.length}명<small>${esc(office?.theme?.name || '')}</small>`;
+  const kid = floorKing();
+  const kr = kid === 'me' ? { n: S.name, w: weekMin() } : kid ? { n: S.peers.get(kid).pf.n, w: +S.peers.get(kid).pf.wk || 0 } : null;
+  $('#pp-king').innerHTML = kr ? `👑 이번 주 집중왕 <b>${esc(kr.n)}</b> · ${Math.floor(kr.w / 60)}시간 ${kr.w % 60}분` : '👑 이번 주 집중왕: 아직 1시간 넘게 집중한 분이 없어요';
   const ul = $('#pp-list');
   ul.innerHTML = '';
   for (const r of rows) {
@@ -998,6 +1043,22 @@ const net = new Net({
       if (S.othersMemo) p.av.pin(d.m);
       const m = p.pf.memos?.[d.m];
       if (m?.trim()) feed(p.pf.n, saidText(m));
+    } else if (d.a === 'petjoy') {
+      p.av.petJoy();
+    } else if (d.a === 'hello') {
+      p.av.say('출근했어요 👋', 4);
+      p.av.play('wave');
+    } else if (d.a?.startsWith('cheer-')) {
+      // 👏 결과물 응원: cheer-<자리>
+      const seat = +d.a.slice(6);
+      p.av.play('clap');
+      if (seat === S.seat) {
+        toast(`👏 ${p.pf.n}님이 내 결과물을 응원했어요`, 4500);
+        if (store.get('chime', true)) sound.ding?.();
+        bump('cheered');
+      }
+      const tn = seat === S.seat ? S.name : [...S.peers.values()].find((x) => x.seat === seat)?.pf.n;
+      if (tn) feed(p.pf.n, `${tn}님의 결과물을 응원했습니다. 👏`);
     } else if (d.a) {
       p.av.play(d.a);
       feed(p.pf.n, ACTIONS.find((x) => x.id === d.a)?.feed);
@@ -1063,6 +1124,8 @@ async function enter(floor) {
   cam.yaw = 0; cam.pitch = 0.42; cam.dist = 5.2 * far();
   cam.target.set(SPAWN.x, 1.2, SPAWN.z);
   S.entered = true;
+  // 출근 인사: 들어오면 머리 위에 '출근했어요 👋' + 손인사 (같은 층 모두에게)
+  setTimeout(() => { if (!S.entered || !me) return; me.say('출근했어요 👋', 4); me.play('wave'); net.sendAct({ a: 'hello' }); }, 2600);
   setTimeout(updateOnline, 2500);   // 같은 층 사람들을 받은 뒤 전체 접속자
   $('#hud').hidden = false;
   $('#hud-floor').textContent = `${floor}F`;
@@ -1767,6 +1830,7 @@ $('#btn-web').onclick = () => (myPf().links?.length ? openShowcase('me') : openD
 
 // ───────── 결과물 쇼케이스 (B): 미리보기는 그 사이트의 OG 이미지, 양옆 ◀ ▶ 로 다른 사람 ─────────
 const show = { list: [], i: 0, k: 0, live: false };
+const cheered = new Set();   // 응원한 결과물 (이번 접속 동안)
 const ogCache = new Map();
 // 결과물을 올린 사람만, 자리 번호 순
 function showPeople() {
@@ -1827,6 +1891,11 @@ function renderShow() {
   $('#show-open').href = u;
   $('#show-desc').textContent = l.d || '';
   $('#show-live').textContent = show.live ? 'OG 이미지로 보기' : '실제 화면으로 보기';
+  const ch = $('#show-cheer');
+  ch.hidden = mine;
+  const done = cheered.has(`${who}|${l.u}`);
+  ch.textContent = done ? '👏 응원했어요' : '👏 응원하기';
+  ch.classList.toggle('done', !!done);
   const stage = $('#show-stage');
   const tile = `<div class="show-fallback"><span class="c-tile big" style="background:${TILE_COLORS[(host.length + show.k) % TILE_COLORS.length]}">${esc((l.t || host || '?').trim()[0] || '?')}</span><b>${esc(l.t || host)}</b><small>${esc(host)}</small></div>`;
   if (show.live) {
@@ -1851,6 +1920,33 @@ function renderShow() {
 $('#show-prev').onclick = () => stepShow(-1);
 $('#show-next').onclick = () => stepShow(1);
 $('#show-live').onclick = () => { show.live = !show.live; renderShow(); };
+// 👏 응원하기: 결과물 하나에 한 번씩 (이번 접속 동안)
+$('#show-cheer').onclick = () => {
+  const [who, pf, seat] = show.list[show.i] || [];
+  const l = pf?.links?.[show.k];
+  if (!pf || who === 'me' || !l) return;
+  const key = `${who}|${l.u}`;
+  if (cheered.has(key)) { toast('이 결과물은 벌써 응원했어요 👏'); return; }
+  if (seat == null || seat < 0) { toast('자리에 앉아 있는 분만 응원할 수 있어요'); return; }
+  cheered.add(key);
+  net.sendAct({ a: `cheer-${seat}` });
+  me?.play('clap');
+  sound.pop?.();
+  feed(S.name, `${pf.n}님의 결과물을 응원했습니다. 👏`);
+  toast(`👏 ${pf.n}님께 응원을 보냈어요`);
+  bump('cheer');
+  renderShow();
+};
+// 🐾 내 펫 누르기: 폴짝폴짝 + 하트 (같은 층 모두에게 보여요)
+let petCool = 0;
+function petPlay() {
+  if (!me?.pet || performance.now() < petCool) return;
+  petCool = performance.now() + 1200;
+  me.petJoy();
+  net.sendAct({ a: 'petjoy' });
+  sound.pop?.();
+  bump('pet');
+}
 $('#show-edit').onclick = () => { closeModal('show-modal'); openDesk('links'); };
 addEventListener('keydown', (e) => { if ($('#show-modal').hidden || typing()) return; if (e.key === 'ArrowLeft') { stepShow(-1); e.preventDefault(); } if (e.key === 'ArrowRight') { stepShow(1); e.preventDefault(); } }, true);
 
@@ -2007,6 +2103,71 @@ function openStats() {
   $('#st-week').innerHTML = week.map((w, i) => `<div class="st-bar${i === 6 ? ' today' : ''}" title="${dayKey(w.d)} · ${fmtMin(w.s)}"><em>${w.s >= 60 ? shortMin(w.s) : ''}</em><i style="height:${Math.round((w.s / max) * 100)}%"></i><small>${i === 6 ? '오늘' : WD[w.d.getDay()]}</small></div>`).join('');
   openModal('stats-modal');
 }
+
+// 🗂️ 주간 리포트 카드: 최근 7일 집중 · 할 일 · 배지를 세로 그림 한 장으로 → 내 사진에 저장, 열어서 공유
+function makeWeekCard() {
+  const W = 1080, H = 1350, c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  const F = (w, px) => `${w} ${px}px "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif`;
+  const bg = g.createLinearGradient(0, 0, W, H); bg.addColorStop(0, '#1b1f2b'); bg.addColorStop(1, '#0f1118');
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  g.fillStyle = 'rgba(255,179,92,.12)'; g.beginPath(); g.arc(W - 120, 120, 260, 0, Math.PI * 2); g.fill();
+  const days = []; for (let i = 6; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); days.push(d); }
+  const secs = days.map((d) => store.get('focus.' + dayKey(d), 0));
+  const total = secs.reduce((a, b) => a + b, 0);
+  const todo = days.reduce((a, d) => a + ((store.get('day.' + dayKey(d), { todos: [] }).todos || []).filter((t) => t.d).length), 0);
+  const T = totals(), got = earned(T);
+  const md = (d) => `${d.getMonth() + 1}.${d.getDate()}`;
+  g.textBaseline = 'alphabetic';
+  g.fillStyle = '#ffb35c'; g.font = F(700, 34); g.fillText('SOHO LAB · WEEKLY', 80, 130);
+  g.fillStyle = '#9aa1b2'; g.font = F(500, 32); g.fillText(`${md(days[0])} – ${md(days[6])}`, 80, 180);
+  g.fillStyle = '#f4f1ea'; g.font = F(800, 64); g.fillText(`${S.name || '소호랩 개발자'}의 한 주`, 80, 290);
+  // 큰 숫자: 집중 시간
+  const h = Math.floor(total / 3600), m = Math.round((total % 3600) / 60);
+  g.fillStyle = '#5fd3a8'; g.font = F(800, 150); g.fillText(`${h}`, 80, 490);
+  let x = 80 + g.measureText(`${h}`).width + 14;
+  g.font = F(700, 56); g.fillText('시간', x, 490); x += g.measureText('시간').width + 24;
+  g.font = F(800, 150); g.fillText(`${m}`, x, 490); x += g.measureText(`${m}`).width + 14;
+  g.font = F(700, 56); g.fillText('분 집중', x, 490);
+  // 7일 막대
+  const max = Math.max(3600, ...secs), bx = 80, by = 900, bw = 104, gap = 22, bh = 330, WD = '일월화수목금토';
+  secs.forEach((s, i) => {
+    const hh = Math.max(6, Math.round((s / max) * bh)), xx = bx + i * (bw + gap);
+    g.fillStyle = 'rgba(255,255,255,.07)'; g.fillRect(xx, by - bh, bw, bh);
+    g.fillStyle = i === 6 ? '#ffb35c' : '#5fd3a8'; g.fillRect(xx, by - hh, bw, hh);
+    g.fillStyle = '#c9ccd6'; g.font = F(600, 28); g.textAlign = 'center';
+    g.fillText(i === 6 ? '오늘' : WD[days[i].getDay()], xx + bw / 2, by + 44);
+    if (s >= 60) { g.fillStyle = '#f4f1ea'; g.font = F(700, 26); g.fillText(shortMin(s), xx + bw / 2, by - hh - 14); }
+    g.textAlign = 'left';
+  });
+  // 아래 칸 셋
+  const box3 = [['끝낸 할 일', `${todo}개`], ['연속 출근', `${T.streak}일`], ['배지', `${got.length}/${BADGES.length}`]];
+  box3.forEach(([k, v], i) => {
+    const xx = 80 + i * 316;
+    g.fillStyle = 'rgba(255,255,255,.06)'; g.beginPath(); if (g.roundRect) g.roundRect(xx, 1010, 292, 170, 26); else g.rect(xx, 1010, 292, 170); g.fill();
+    g.fillStyle = '#9aa1b2'; g.font = F(600, 28); g.fillText(k, xx + 30, 1062);
+    g.fillStyle = '#f4f1ea'; g.font = F(800, 58); g.fillText(v, xx + 30, 1140);
+  });
+  g.font = '44px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+  g.fillText(got.slice(-12).map((b) => b.icon).join(' '), 80, 1260);
+  g.fillStyle = '#6c7386'; g.font = F(600, 26); g.textAlign = 'right'; g.fillText(`Lv ${lv()} · soho-lab.site`, W - 80, 1300); g.textAlign = 'left';
+  return new Promise((res) => c.toBlob(res, 'image/png'));
+}
+$('#st-card').onclick = async () => {
+  const blob = await makeWeekCard();
+  if (!blob) { toast('카드를 만들지 못했어요'); return; }
+  const id = Date.now();
+  // 앨범 저장은 기다리지 않아요 (사진 찍기와 같이). 카드는 바로 열어요
+  addPhoto(blob, '주간 리포트', id).then((ok) => { if (ok) { photoCount++; renderPhotos(); checkBadges(); } });
+  bump('card');
+  const u = URL.createObjectURL(blob);
+  phOpen = { id, blob, u, place: '주간 리포트' };
+  $('#ph-img').src = u;
+  $('#ph-title').textContent = '이번 주 리포트 카드';
+  openModal('photo-modal');
+  toast('카드를 내 사진에 담았어요. ⬇ 저장으로 공유해 보세요');
+};
 
 // ⚙️ 개인 및 환경 설정
 function applyLite(on) { renderer.setPixelRatio(on ? 1 : Math.min(devicePixelRatio, 2)); renderer.shadowMap.enabled = !on; scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; }); }

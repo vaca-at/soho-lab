@@ -774,3 +774,15 @@ body.calm { cursor: none; }
 .pf-move { display: grid; gap: 8px; padding: 0 2px 12px; }
 .pf-move textarea { font: 12px/1.4 var(--mono); color: var(--text); padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line-2); background: rgba(0, 0, 0, .25); resize: vertical; word-break: break-all; }
 .pf-move[hidden], #pf-code-go[hidden] { display: none; }
+
+/* 👑 이번 주 집중왕 (누가 있나 창) */
+.pp-king { margin: 0 0 8px; padding: 8px 10px; border-radius: 10px; background: rgba(255, 210, 122, .1); border: 1px solid rgba(255, 210, 122, .25); font-size: 12.5px; color: #ffd7a8; }
+.pp-king b { color: #fff3d6; }
+/* 👏 응원 단추 */
+.show-btns { display: flex; gap: 8px; flex: none; }
+.cheer-btn { background: rgba(255, 179, 92, .16); color: #ffd7a8; border: 1px solid rgba(255, 179, 92, .4); }
+.cheer-btn:hover { background: rgba(255, 179, 92, .26); }
+.cheer-btn.done { opacity: .6; }
+.cheer-btn[hidden] { display: none; }
+/* 🗂️ 주간 리포트 카드 단추 */
+.st-h .st-card-btn { float: right; font-size: 12px; padding: 4px 10px; }

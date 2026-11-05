@@ -865,6 +865,18 @@ function paintSchool(g, w, h, hour) {
 }
 
 // 창밖 그림: city 도시 · dusk 노을 도시 · cyber 비 오는 네온 도시 · ocean 바다 · forest 숲 · mountain 산 · space 우주
+// 창밖 비 · 눈: 하늘 위에 살짝 어둡게 + 빗줄기 / 눈송이
+export function paintWeather(g, w, h, wx) {
+  const r = rng(29);
+  g.fillStyle = wx === 'rain' ? 'rgba(30, 38, 56, .38)' : 'rgba(200, 210, 225, .18)';
+  g.fillRect(0, 0, w, h);
+  if (wx === 'rain') {
+    g.strokeStyle = 'rgba(200, 215, 235, .45)'; g.lineWidth = 1.5;
+    for (let i = 0; i < 320; i++) { const x = r() * w, y = r() * h, l = 14 + r() * 22; g.beginPath(); g.moveTo(x, y); g.lineTo(x - l * 0.25, y + l); g.stroke(); }
+  } else {
+    for (let i = 0; i < 260; i++) { g.fillStyle = `rgba(255,255,255,${0.55 + r() * 0.4})`; g.beginPath(); g.arc(r() * w, r() * h, 1.5 + r() * 2.5, 0, Math.PI * 2); g.fill(); }
+  }
+}
 export function paintView(g, w, h, hour, view) {
   if (view === 'city' || view === 'dusk') return paintSkyline(g, w, h, hour);
   if (view === 'school') return paintSchool(g, w, h, hour);
@@ -1043,7 +1055,7 @@ export function buildOffice(themeId) {
     glass.position.set(cx0, H / 2, ROOM.minZ - 0.5);
     world.add(glass);
   }
-  const paintSky = (hour) => { paintView(skyC.getContext('2d'), skyC.width, skyC.height, hour, T.view); skyTex.needsUpdate = true; };
+  const paintSky = (hour, wx) => { const g = skyC.getContext('2d'); paintView(g, skyC.width, skyC.height, hour, T.view); if (wx && T.view !== 'space') paintWeather(g, skyC.width, skyC.height, wx); skyTex.needsUpdate = true; };
 
   // 책상 섬
   const seats = seatLayout();

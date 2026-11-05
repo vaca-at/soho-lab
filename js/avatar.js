@@ -258,6 +258,23 @@ export class Avatar {
     this.bubbleShown = true;
   }
   hideBubble() { this.bubbleShown = false; }
+  // 아무 말이나 잠깐 띄운다 (출근 인사 등)
+  say(text, sec = 4) { this.showText(text); this.pinned = sec; this.memoT = 0; }
+  // 펫이 신나서 폴짝폴짝 + 하트
+  petJoy() {
+    if (!this.pet) return;
+    this.joyT = 1.6;
+    if (!this.heart) {
+      const c = document.createElement('canvas'); c.width = c.height = 64;
+      const g = c.getContext('2d'); g.font = '48px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('💖', 32, 36);
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+      this.heart = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthWrite: false, transparent: true }));
+      this.heart.scale.set(0.38, 0.38, 1);
+      this.heart.renderOrder = 12;
+    }
+    this.pet.add(this.heart);
+    this.heart.visible = true;
+  }
 
   // 메모 하나를 지금 바로 8초 동안 띄운다 (메모 줄에서 누를 때)
   pin(i) {
@@ -310,6 +327,13 @@ export class Avatar {
       if (this.pet) this.pet.removeFromParent();
       this.pet = buildPet(petId);
       this.petId = petId;
+      // 펫 누르기용 보이지 않는 상자 (내 펫만 눌러요)
+      if (this.pet) {
+        this.petHit = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.8, 0.7), new THREE.MeshBasicMaterial({ visible: false }));
+        this.petHit.position.y = 0.4;
+        this.petHit.userData.pet = true;
+        this.pet.add(this.petHit);
+      } else this.petHit = null;
       this.petFresh = true;
     }
 
@@ -459,6 +483,11 @@ export class Avatar {
     const t = performance.now() / 1000;
     const hover = pet.userData.hover;
     pet.position.y = hover ? 0.95 + Math.sin(t * 2.4) * 0.06 : moved > 0.3 ? Math.abs(Math.sin(t * 11)) * 0.07 : 0;
+    if (this.joyT > 0) {
+      this.joyT -= dt;
+      pet.position.y += Math.abs(Math.sin(this.joyT * 9)) * 0.28;
+      if (this.heart) { this.heart.position.set(0, 1.0 + (1.6 - this.joyT) * 0.35, 0); this.heart.material.opacity = Math.min(1, this.joyT * 1.5); this.heart.visible = this.joyT > 0; }
+    }
     const want = moved > 0.3 ? Math.atan2(pet.position.x - bx, pet.position.z - bz) : ry;
     const diff = Math.atan2(Math.sin(want - pet.rotation.y), Math.cos(want - pet.rotation.y));
     pet.rotation.y += diff * Math.min(1, dt * 6);

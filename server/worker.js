@@ -229,6 +229,7 @@ function cleanProfile(d) {
     mm: ['auto', 'one', 'off'].includes(d.mm) ? d.mm : 'auto',
     mi: Math.max(0, Math.min(4, d.mi | 0)),
     lv: Math.max(1, Math.min(99, d.lv | 0)),
+    wk: Math.max(0, Math.min(10080, d.wk | 0)),   // 이번 주 집중한 분 (집중왕)
   };
 }
 function cleanState(d) {

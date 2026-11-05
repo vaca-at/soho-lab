@@ -23,22 +23,22 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="style.css?v=20261106a">
+<link rel="stylesheet" href="style.css?v=20261106b">
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
-  "./js/data.js": "./js/data.js?v=20261106a",
-  "./js/blocky.js": "./js/blocky.js?v=20261106a",
-  "./js/avatar.js": "./js/avatar.js?v=20261106a",
-  "./js/world.js": "./js/world.js?v=20261106a",
-  "./js/net.js": "./js/net.js?v=20261106a",
-  "./js/badwords.js": "./js/badwords.js?v=20261106a",
-  "./js/todo.js": "./js/todo.js?v=20261106a",
-  "./js/sound.js": "./js/sound.js?v=20261106a",
-  "./js/album.js": "./js/album.js?v=20261106a",
-  "./js/fx.js": "./js/fx.js?v=20261106a",
-  "./js/badges.js": "./js/badges.js?v=20261106a"
+  "./js/data.js": "./js/data.js?v=20261106b",
+  "./js/blocky.js": "./js/blocky.js?v=20261106b",
+  "./js/avatar.js": "./js/avatar.js?v=20261106b",
+  "./js/world.js": "./js/world.js?v=20261106b",
+  "./js/net.js": "./js/net.js?v=20261106b",
+  "./js/badwords.js": "./js/badwords.js?v=20261106b",
+  "./js/todo.js": "./js/todo.js?v=20261106b",
+  "./js/sound.js": "./js/sound.js?v=20261106b",
+  "./js/album.js": "./js/album.js?v=20261106b",
+  "./js/fx.js": "./js/fx.js?v=20261106b",
+  "./js/badges.js": "./js/badges.js?v=20261106b"
 } }
 </script>
 </head>
@@ -166,7 +166,7 @@
       <section class="show-view">
         <div class="show-bar"><span class="dots"><i></i><i></i><i></i></span><span class="show-url" id="show-url"></span><a class="primary small-btn" id="show-open" target="_blank" rel="noopener noreferrer">접속하기 ↗</a></div>
         <div class="show-stage" id="show-stage"></div>
-        <div class="show-foot"><p id="show-desc"></p><button type="button" class="ghost small-btn" id="show-live">실제 화면으로 보기</button></div>
+        <div class="show-foot"><p id="show-desc"></p><span class="show-btns"><button type="button" class="small-btn cheer-btn" id="show-cheer">👏 응원하기</button><button type="button" class="ghost small-btn" id="show-live">실제 화면으로 보기</button></span></div>
       </section>
     </div>
     <p class="show-count" id="show-count"></p>
@@ -212,7 +212,7 @@
   <div class="sheet stats-sheet">
     <header class="panel-head"><h2>내 기록</h2><button class="icon-btn" data-close="stats-modal" aria-label="닫기">✕</button></header>
     <div id="st-cards" class="st-cards"></div>
-    <h3 class="st-h">최근 7일 집중</h3>
+    <h3 class="st-h">최근 7일 집중 <button type="button" id="st-card" class="small-btn st-card-btn">🗂️ 주간 리포트 카드 만들기</button></h3>
     <div id="st-week" class="st-week"></div>
     <h3 class="st-h">배지 <small id="st-badge-n"></small></h3>
     <div id="st-badges" class="st-badges"></div>
@@ -326,6 +326,7 @@
   <!-- 같은 층 사람: 닉네임 · 자리 · 지금 하는 일 -->
   <div id="people-pop" class="glass people-pop" role="dialog" aria-label="이 층에 있는 사람" hidden>
     <header><b id="pp-title"></b><button type="button" class="td-x" id="pp-close" aria-label="닫기">✕</button></header>
+    <p id="pp-king" class="pp-king"></p>
     <ul id="pp-list" class="pp-list"></ul>
     <button type="button" id="pp-floors" class="pp-floors">🛗 다른 층 보기</button>
   </div>
@@ -372,6 +373,6 @@
   <div id="joystick" aria-hidden="true"><i class="ar up"></i><i class="ar dn"></i><i class="ar lf"></i><i class="ar rt"></i><div class="knob"></div></div>
 </section>
 
-<script type="module" src="js/main.js?v=20261106a"></script>
+<script type="module" src="js/main.js?v=20261106b"></script>
 </body>
 </html>

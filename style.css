@@ -450,7 +450,14 @@ button .cap { display: block; font-size: 10.5px; line-height: 1.3; font-weight: 
 .slot-edit { width: 30px; height: 30px; border-radius: 50%; color: var(--amber); font-size: 14px; }
 .slot-edit:hover { background: rgba(255, 255, 255, .09); }
 @media (prefers-reduced-motion: reduce) { .reel .strip { transition: none !important; } .lever.pull i, .lever.pull::before { animation: none; } }
-/* 아래 막대의 자리 릴 */
+/* 아래 막대의 자리 단추 셋: 금테, 지금 상태인 단추는 노랗게 빛나요 */
+#actions .seat-btns { display: flex; gap: 4px; margin: 0 4px 0 2px; flex: none; }
+.seat-btn { height: 34px; padding: 0 11px; border-radius: 9px; font-size: 13px; font-weight: 700; white-space: nowrap; color: #ffd7a8; cursor: pointer;
+  background: linear-gradient(#0b0d12, #1c2030 45%, #1c2030 55%, #0b0d12);
+  box-shadow: inset 0 0 0 1.5px #c9a24a, 0 0 10px rgba(201, 162, 74, .18); transition: box-shadow .15s, color .15s; }
+.seat-btn:hover { color: #fff3d6; box-shadow: inset 0 0 0 1.5px #e0b85a, 0 0 12px rgba(201, 162, 74, .3); }
+.seat-btn.on { color: #fff3d6; box-shadow: inset 0 0 0 2px #ffd27a, 0 0 16px rgba(255, 200, 100, .55); }
+.seat-btn:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 #actions .reel.sit { margin: 0 4px 0 2px; }
 #actions .reel.sit .win { width: 112px; }
 #actions .reel.sit .cell { color: #ffd7a8; font-size: 13px; padding: 0 8px; }
@@ -676,7 +683,7 @@ body.calm { cursor: none; }
 .st-photos button { padding: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; aspect-ratio: 16 / 10; cursor: pointer; background: #000; }
 .st-photos img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .st-empty { grid-column: 1 / -1; margin: 0; color: var(--soft); font-size: 13px; }
-.ph-img { width: 100%; border-radius: 12px; border: 1px solid var(--line); }
+.ph-img { width: 100%; max-height: 68vh; object-fit: contain; border-radius: 12px; border: 1px solid var(--line); }
 .stats-sheet { width: min(560px, 100%); }
 .photo-bar[hidden] { display: none; }
 /* 휴대폰: 위 단추줄은 할 일 · 소리 · 캐릭터 · 책상 · 메뉴만, 나머지는 메뉴 안에 */
@@ -684,8 +691,25 @@ body.calm { cursor: none; }
 @media (max-width: 760px) {
   .menu .m-only { display: block; }
   .menu .m-last { border-bottom: 1px solid var(--line); border-radius: 10px 10px 0 0; margin-bottom: 4px; }
-  #btn-web, #btn-store, #btn-photo, #btn-calm { display: none !important; }
+  #btn-web, #btn-store, #btn-photo { display: none !important; }   /* 휴대폰 위 줄: 캐릭터 · 책상 꾸미기 · 할 일 · 음악 · 메뉴 */
 }
 .menu { z-index: 5; }
 .swatch.base { font-size: 10.5px; font-weight: 700; color: var(--text); background: repeating-linear-gradient(135deg, #3a2a20 0 6px, #6b4128 6px 12px); text-shadow: 0 1px 2px #000; }
 .menu .menu-admin { display: block; text-align: right; padding: 6px 14px 2px; font-size: 11.5px; color: var(--soft); opacity: .45; text-decoration: none; } .menu .menu-admin:hover { opacity: .9; }
+
+/* 바탕화면 네모 단추: 화면 오른쪽 아래 */
+.calm-fab { position: absolute; right: max(16px, env(safe-area-inset-right)); bottom: calc(max(14px, env(safe-area-inset-bottom)) + 6px); z-index: 4; width: 46px; height: 46px; padding: 0; border-radius: 12px; display: grid; place-items: center; cursor: pointer; pointer-events: auto; }
+.calm-fab svg { width: 22px; height: 22px; fill: none; stroke: #f1eee8; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.calm-fab:hover { box-shadow: inset 0 0 0 1.5px #c9a24a, 0 0 12px rgba(201, 162, 74, .3); }
+.calm-fab:hover svg { stroke: #ffd7a8; }
+/* 좁은 화면: 오른쪽은 동작 메뉴, 왼쪽 아래는 조이스틱이라 그 위 왼쪽으로 */
+@media (max-width: 1000px) { .calm-fab { right: auto; left: max(18px, env(safe-area-inset-left)); bottom: calc(max(14px, env(safe-area-inset-bottom)) + 236px); width: 42px; height: 42px; } }
+
+/* 🌐 새 웹 결과물 알림 카드: 누를 수 있게, 민트 테두리 */
+#toasts .web-toast { pointer-events: auto; display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 12px; border-radius: 16px; border-color: rgba(95, 211, 168, .6); box-shadow: 0 0 18px rgba(95, 211, 168, .28); }
+.web-toast .wt-icon { font-size: 20px; }
+.web-toast .wt-text { display: grid; line-height: 1.35; }
+.web-toast .wt-text b { color: #bfe8d8; }
+.web-toast .wt-text small { color: var(--soft); font-size: 12px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.web-toast button { flex: none; padding: 7px 12px; border-radius: 10px; background: #5fd3a8; color: #0d2a20; font-weight: 700; font-size: 13px; cursor: pointer; }
+.web-toast button:hover { background: #7fe0bc; }

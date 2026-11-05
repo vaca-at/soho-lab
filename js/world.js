@@ -1081,8 +1081,19 @@ export function buildOffice(themeId) {
   box(fridge, '#f6fbff', 0.01, 1.62, 0.78, -0.405, 1.05, 0, glow('#e8f6ff', 0.9));
   const fridgeHit = box(fridge, '#cfe8f6', 0.03, 1.72, 0.86, -0.43, 1.05, 0, { transparent: true, opacity: 0.25 });
   const drinkC = [['#6a2c8a', '#c9a8e0'], ['#c8302a', '#f4f4f2'], ['#3fa85a', '#e8f6ec']];
+  const petC = [['#d6eef9', '#2f7fd0', '#2f7fd0'], ['#a8672a', '#efe2bf', '#7a4a1e'], ['#b9cf63', '#2f8a4a', '#2f8a4a']];
   for (let row = 0; row < 4; row++) {
     box(fridge, '#c9ccd2', 0.02, 0.02, 0.8, -0.38, 0.38 + row * 0.42, 0);
+    if (row === 3) { // 맨 위 칸: 페트병 (생수 · 보리차 · 녹차 두 병씩)
+      for (let k = 0; k < 6; k++) {
+        const [drink, label, cap] = petC[k >> 1], y = 0.47 + row * 0.42, z = -0.32 + k * 0.13;
+        box(fridge, drink, 0.075, 0.14, 0.075, -0.34, y, z, { transparent: true, opacity: 0.8 });
+        box(fridge, label, 0.077, 0.05, 0.077, -0.34, y - 0.005, z);
+        box(fridge, drink, 0.04, 0.03, 0.04, -0.34, y + 0.085, z, { transparent: true, opacity: 0.8 });
+        box(fridge, cap, 0.035, 0.025, 0.035, -0.34, y + 0.11, z);
+      }
+      continue;
+    }
     const [c, band] = drinkC[row % 3];
     for (let k = 0; k < 6; k++) { box(fridge, c, 0.08, 0.16, 0.08, -0.34, 0.48 + row * 0.42, -0.32 + k * 0.13); box(fridge, band, 0.081, 0.04, 0.081, -0.34, 0.5 + row * 0.42, -0.32 + k * 0.13); }
   }
@@ -1090,7 +1101,7 @@ export function buildOffice(themeId) {
   const fsign = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.5), new THREE.MeshBasicMaterial({ map: canvasTex(512, 200, (g, w, h) => {
     g.fillStyle = '#12151c'; g.fillRect(0, 0, w, h); g.strokeStyle = '#5fd3a8'; g.lineWidth = 6; g.strokeRect(6, 6, w - 12, h - 12);
     g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#5fd3a8'; g.font = `700 54px ${FONT}`; g.fillText('무제한 무료', w / 2, 62);
-    g.fillStyle = '#f1eee8'; g.font = `500 34px ${FONT}`; g.fillText('웰치스 포도 · 콜라 · 사이다', w / 2, 140);
+    g.fillStyle = '#f1eee8'; g.font = `500 28px ${FONT}`; g.fillText('캔 음료 · 생수 · 보리차 · 녹차', w / 2, 140);
   }), toneMapped: false }));
   fsign.rotation.y = -Math.PI / 2; fsign.position.set(-0.47, 2.35, 0); fridge.add(fsign);
   fridgeHit.userData.kind = 'fridge';

@@ -191,7 +191,7 @@
 <div id="fridge-modal" class="modal" hidden>
   <div class="sheet">
     <header class="panel-head"><h2>음료 냉장고</h2><button class="icon-btn" data-close="fridge-modal" aria-label="닫기">✕</button></header>
-    <p class="sub">웰치스 포도 · 콜라 · 사이다 <b class="free">무제한 무료</b>예요. 고르면 냉장고까지 걸어가서 꺼내 마셔요.</p>
+    <p class="sub">웰치스 포도 · 콜라 · 사이다 · 생수 · 보리차 · 녹차 <b class="free">무제한 무료</b>예요. 고르면 냉장고까지 걸어가서 꺼내 마셔요.</p>
     <div id="fridge-list" class="fridge-list"></div>
   </div>
 </div>
@@ -294,23 +294,21 @@
       <span id="net-chip" class="glass mini warn" hidden></span>
     </div>
     <div class="hud-right">
-      <button id="btn-todo" class="glass icon-btn" aria-controls="todo-panel" aria-expanded="false"><span class="lbl">✅<i id="todo-count" class="todo-count" hidden></i></span><small class="cap">할 일</small></button>
-      <button id="btn-sound" class="glass icon-btn" aria-controls="sound-pop" aria-expanded="false"><span class="lbl">🎵</span><small class="cap">소리</small></button>
       <button id="btn-char" class="glass icon-btn"><span class="lbl">☺</span><small class="cap">캐릭터</small></button>
       <button id="btn-shop" class="glass icon-btn"><span class="lbl">🪴</span><small class="cap">책상 꾸미기</small></button>
-      <button id="btn-web" class="glass icon-btn"><span class="lbl">🌐</span><small class="cap">내 웹 자랑</small></button>
       <button id="btn-store" class="glass icon-btn"><span class="lbl">🛒</span><small class="cap">상점</small></button>
+      <button id="btn-todo" class="glass icon-btn" aria-controls="todo-panel" aria-expanded="false"><span class="lbl">✅<i id="todo-count" class="todo-count" hidden></i></span><small class="cap">할 일</small></button>
+      <button id="btn-sound" class="glass icon-btn" aria-controls="sound-pop" aria-expanded="false"><span class="lbl">🎵</span><small class="cap">음악</small></button>
+      <button id="btn-web" class="glass icon-btn"><span class="lbl">🌐</span><small class="cap">내 웹 자랑</small></button>
       <button id="btn-photo" class="glass icon-btn" title="사진 찍기"><span class="lbl">📷</span><small class="cap">사진</small></button>
-      <button id="btn-calm" class="glass icon-btn" title="바탕화면: 단추를 숨기고 사무실 둘러보기"><span class="lbl">⛶</span><small class="cap">바탕화면</small></button>
       <button id="btn-menu" class="glass icon-btn"><span class="lbl">☰</span><small class="cap">메뉴</small></button>
     </div>
   </div>
   <div id="menu" class="glass menu" hidden>
     <!-- 휴대폰: 위 단추줄에 다 못 들어가는 것들 -->
-    <button data-menu="btn-web" class="m-only">🌐 내 웹 자랑</button>
     <button data-menu="btn-store" class="m-only">🛒 상점</button>
-    <button data-menu="btn-photo" class="m-only">📷 사진 찍기</button>
-    <button data-menu="btn-calm" class="m-only m-last">⛶ 바탕화면</button>
+    <button data-menu="btn-web" class="m-only">🌐 내 웹 자랑</button>
+    <button data-menu="btn-photo" class="m-only m-last">📷 사진 찍기</button>
     <button data-menu="stats">📊 내 기록 보기</button>
     <button data-menu="prefs">⚙️ 개인 및 환경 설정</button>
     <button data-menu="guide">📖 소호랩 사용법</button>
@@ -331,6 +329,8 @@
     <p class="snd-note">모두 브라우저에서 바로 만드는 소리예요. 저작권 걱정 없어요.</p>
   </div>
   <div id="toasts"></div>
+  <!-- 바탕화면: 화면 오른쪽 아래 네모 단추 -->
+  <button id="btn-calm" class="glass calm-fab" title="바탕화면: 단추를 숨기고 사무실 둘러보기" aria-label="바탕화면"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
   <!-- 사진 찍기: 단추를 모두 숨기고 끌어서 구도 잡기 -->
   <div id="photo-bar" class="glass photo-bar" hidden>
     <span>끌어서 구도 잡기 · 휠로 가까이</span>

@@ -188,7 +188,13 @@ addEventListener('blur', () => keys.clear());
 // 끌어서 돌리기 / 누르기
 const ptr = { down: false, x: 0, y: 0, moved: 0, id: null };
 const touches = new Map();
+// 공유 창 · 다른 앱으로 넘어가면 손가락 뗌(pointerup)이 안 올 때가 있어요. 남은 손가락이 있다고 믿으면
+// 다음 누름이 모두 '두 손가락'으로 잡혀 화면이 안 움직이니, 새 누름의 첫 손가락에서 · 창을 떠날 때 비워요
+const clearTouches = () => { touches.clear(); ptr.down = false; };
+addEventListener('blur', clearTouches);
+document.addEventListener('visibilitychange', () => { if (document.hidden) clearTouches(); });
 canvas.addEventListener('pointerdown', (e) => {
+  if (e.isPrimary) touches.clear();
   touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (touches.size > 1) { ptr.moved = 99; return; }
   Object.assign(ptr, { down: true, x: e.clientX, y: e.clientY, moved: 0, id: e.pointerId });
@@ -468,7 +474,7 @@ function doTrip(def) {
   const tok = ++tripToken;
   feed(S.name, def.feed);
   net.sendAct({ a: def.id });
-  const cn = { t_coffee: 'coffee', t_grape: 'grape', t_cola: 'cola', t_cider: 'cider' }[def.id];
+  const cn = { t_coffee: 'coffee', t_grape: 'grape', t_cola: 'cola', t_cider: 'cider', t_pwater: 'pwater', t_barley: 'barley', t_gtea: 'gtea' }[def.id];
   if (cn) bump(cn);
   S.walkTo = { x: sp.x, z: sp.z, t: 0, best: Infinity, stuck: 0, then: () => {
     if (tok !== tripToken) return;
@@ -521,16 +527,33 @@ function canSvg(id) {
   </svg>`;
 }
 
-// 냉장고: 웰치스 포도 · 콜라 · 사이다 무제한 무료
+// 페트병 그림: 뚜껑 · 병목 · 비치는 몸통 속 음료, 가운데 띠 상표 (상표 없이 소호랩 병)
+function petSvg(id) {
+  const k = { t_pwater: { drink: '#cfeaf8', cap: '#2f7fd0', label: '#2f7fd0', ink: '#fff', t1: 'WATER', t2: '생수 500ml' }, t_barley: { drink: '#a8672a', cap: '#7a4a1e', label: '#efe2bf', ink: '#6a3a14', t1: 'BARLEY', t2: '보리차 500ml' }, t_gtea: { drink: '#b9cf63', cap: '#2f8a4a', label: '#2f8a4a', ink: '#fff', t1: 'GREEN TEA', t2: '녹차 500ml' } }[id];
+  const g = 'g' + id;
+  return `<svg class="can" viewBox="0 0 60 104" aria-hidden="true">
+    <defs><linearGradient id="${g}" x1="0" x2="1"><stop offset="0" stop-color="#000" stop-opacity=".3"/><stop offset=".22" stop-color="#fff" stop-opacity=".55"/><stop offset=".36" stop-color="#fff" stop-opacity="0"/><stop offset=".8" stop-color="#000" stop-opacity=".08"/><stop offset="1" stop-color="#000" stop-opacity=".35"/></linearGradient></defs>
+    <rect x="23" y="2" width="14" height="9" rx="2" fill="${k.cap}"/>
+    <path d="M23 9 h14" stroke="#000" stroke-opacity=".25" stroke-width="1"/>
+    <path d="M25 11 h10 v5 C 35 22, 50 24, 50 34 L50 92 Q50 98 44 98 L16 98 Q10 98 10 92 L10 34 C 10 24, 25 22, 25 16 Z" fill="${k.drink}" fill-opacity=".85" stroke="#fff" stroke-opacity=".5" stroke-width=".8"/>
+    <rect x="10" y="50" width="40" height="28" fill="${k.label}"/>
+    <text x="30" y="64" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="${k.t1.length > 6 ? 6.5 : 8.5}" fill="${k.ink}">${k.t1}</text>
+    <text x="30" y="73" text-anchor="middle" font-family="${FONT.replace(/"/g, "'")}" font-weight="700" font-size="5.5" fill="${k.ink}" opacity=".9">${k.t2}</text>
+    <path d="M10 40 h40 M10 86 h40" stroke="#fff" stroke-opacity=".45" stroke-width="1"/>
+    <path d="M25 11 h10 v5 C 35 22, 50 24, 50 34 L50 92 Q50 98 44 98 L16 98 Q10 98 10 92 L10 34 C 10 24, 25 22, 25 16 Z" fill="url(#${g})"/>
+  </svg>`;
+}
+
+// 냉장고: 캔(웰치스 포도 · 콜라 · 사이다) · 페트병(생수 · 보리차 · 녹차) 무제한 무료
 function openFridge() {
   const el = $('#fridge-list');
   el.innerHTML = '';
-  for (const id of ['t_grape', 't_cola', 't_cider']) {
+  for (const id of ['t_grape', 't_cola', 't_cider', 't_pwater', 't_barley', 't_gtea']) {
     const def = ACTIONS.find((a) => a.id === id);
     const b = document.createElement('button');
     b.type = 'button';
     b.className = `drink ${id}`;
-    b.innerHTML = `${canSvg(id)}<b>${def.name}</b><small>무제한 무료</small>`;
+    b.innerHTML = `${['t_pwater', 't_barley', 't_gtea'].includes(id) ? petSvg(id) : canSvg(id)}<b>${def.name}</b><small>무제한 무료</small>`;
     b.onclick = () => { closeModal('fridge-modal'); doTrip(def); };
     el.append(b);
   }
@@ -679,6 +702,34 @@ function applyMyMemos() { me?.setMemos(S.profile.memos, S.memoMode, S.memoIdx); 
 function pushProfile() { net.sendProfile(myPf()); if (S.seat >= 0) refreshScreen(S.seat); }
 
 // ───────── 같은 층 사람들 ─────────
+// 🌐 웹 결과물 알림: 같은 층 누가 새 주소를 올리면 알림 카드 + 이름표에 🌐 NEW (10분)
+const WEB_NEW_MS = 10 * 60 * 1000;
+const webState = (pf, until = 0) => (pf?.links?.length ? (until > Date.now() ? 2 : 1) : 0);
+// 예전에 없던 주소만 '새 결과물' (제목 · 설명만 고친 건 알리지 않아요)
+function newLinks(before, after) {
+  const had = new Set((before?.links || []).map((l) => l.u));
+  return (after?.links || []).map((l, k) => [l, k]).filter(([l]) => l.u && !had.has(l.u));
+}
+function markWebNew(av, getPf, setUntil) {
+  const until = Date.now() + WEB_NEW_MS;
+  setUntil(until);
+  av.setWeb(2);
+  setTimeout(() => { const pf = getPf(); if (pf) av.setWeb(webState(pf, until)); }, WEB_NEW_MS + 500);
+}
+function webNotice(who, name, link, k) {
+  const t = document.createElement('div');
+  t.className = 'toast web-toast';
+  t.innerHTML = '<span class="wt-icon">🌐</span><span class="wt-text"><span><b></b>님이 새 웹 결과물을 올렸어요</span><small></small></span><button type="button">보러 가기</button>';
+  t.querySelector('b').textContent = name;
+  t.querySelector('small').textContent = link.t || link.u.replace(/^https?:\/\//, '');
+  const close = () => { t.classList.add('out'); setTimeout(() => t.remove(), 400); };
+  t.querySelector('button').onclick = () => { close(); if (S.peers.has(who)) openShowcase(who, k); else toast('그분이 층을 떠났어요'); };
+  $('#toasts').append(t);
+  while ($('#toasts').children.length > 4) $('#toasts').firstChild.remove();
+  setTimeout(close, 9000);
+  if (store.get('chime', true)) sound.ding();
+}
+
 function addOrUpdatePeer(id, pf, seat) {
   let p = S.peers.get(id);
   if (!p) {
@@ -694,10 +745,18 @@ function addOrUpdatePeer(id, pf, seat) {
     if (p.pf.n !== pf.n) p.av.setName(pf.n);
     // '하나' 모드로 메모를 고르면 알림
     if (pf.mm === 'one' && (p.pf.mm !== 'one' || p.pf.mi !== pf.mi) && pf.memos?.[pf.mi]?.trim()) feed(pf.n, saidText(pf.memos[pf.mi]));
+    const added = newLinks(p.pf, pf);
+    if (added.length && S.entered) {
+      const [l, k] = added[0];
+      feed(pf.n, `새 웹 결과물 '${l.t || '이름 없음'}'을 올렸습니다. 🌐`);
+      webNotice(id, pf.n, l, k);
+      markWebNew(p.av, () => S.peers.get(id)?.pf, (u) => { p.webNew = u; });
+    }
     p.pf = pf;
     if (seat !== undefined) p.seat = seat;
   }
   p.av.setMemos(S.othersMemo ? pf.memos : [], pf.mm || 'auto', pf.mi | 0);
+  p.av.setWeb(webState(pf, p.webNew));
   if (p.seat >= 0) refreshScreen(p.seat);
   updatePeople();
 }
@@ -890,6 +949,8 @@ async function enter(floor) {
   S.sitting = false;
   if (!me) {
     me = new Avatar(S.look, S.name, { mine: true });
+    me.web = webState(S.profile);   // 이름표를 처음 그리기 전에
+    me.setName(S.name);
     me.hit.userData.me = true;
     scene.add(me.group);
   }
@@ -932,16 +993,27 @@ function doAct(id) {
 function renderActions() {
   const el = $('#actions');
   el.innerHTML = '';
-  // 자리 릴: [내 자리로 · 일어서기 · 사무실 한 바퀴] 를 굴려 멈춘 것을 해요 (지금 상태가 보이는 칸)
+  // 자리 단추 셋: [내 자리로] [일어서기 · 멈추기] [사무실 한 바퀴]. 지금 상태인 단추에 노란 테두리
   const now = S.sitting ? 0 : touring ? 2 : 1;
-  // 가운데 칸: 앉아 있을 땐 [일어서기], 돌아다닐 땐 [멈추기]
-  const sitReel = makeReel(['내 자리로', S.sitting || S.sofa >= 0 ? '일어서기' : '멈추기', '사무실 한 바퀴'], now, (i) => {
-    if (i === 0) { stopTour(); if (!S.sitting) goSit(); }
-    else if (i === 1) { stopTour(); tripToken++; if (S.sitting) standUp(); else if (S.sofa >= 0) leaveSofa(); else { S.walkTo = null; hideMarker(); } }
-    else if (!touring) startTour();
-  }, 'sit');
-  sitReel.title = S.sitting ? '내 자리로 · 일어서기 · 사무실 한 바퀴' : '내 자리로 · 멈추기 · 사무실 한 바퀴';
-  el.append(sitReel);
+  const seatActs = [
+    ['내 자리로', () => { stopTour(); if (!S.sitting) goSit(); }],
+    // 앉아 있을 땐 [일어서기], 돌아다닐 땐 [멈추기]
+    [S.sitting || S.sofa >= 0 ? '일어서기' : '멈추기', () => { stopTour(); tripToken++; if (S.sitting) standUp(); else if (S.sofa >= 0) leaveSofa(); else { S.walkTo = null; hideMarker(); } renderActions(); }],
+    // 도는 중에 다시 누르면 내 자리로 돌아가요
+    ['사무실 한 바퀴', () => { if (touring) { stopTour(); goSit(); } else startTour(); }],
+  ];
+  const seatBox = document.createElement('div');
+  seatBox.className = 'seat-btns';
+  seatActs.forEach(([label, fn], i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'seat-btn' + (i === now ? ' on' : '');
+    b.setAttribute('aria-pressed', String(i === now));
+    b.textContent = label;
+    b.onclick = fn;
+    seatBox.append(b);
+  });
+  el.append(seatBox);
   // 아래 막대: 제자리 동작 · 오른쪽 세로 메뉴: [자리 이동] 따로 + 걸어갔다 오는 동작 (냉장고는 음료 고르기)
   $('#btn-seat').onclick = openSeats;
   $('#btn-browse').onclick = () => openShowcase(null);
@@ -968,60 +1040,6 @@ function setMemoMode(mode, idx = S.memoIdx) {
   applyMyMemos();
   pushProfile();
   renderMemoBar();
-}
-// 슬롯머신 릴 (자리 줄에서 써요)
-// 릴을 누르거나 · 휠을 굴리거나 · 위아래로 끌면 한 칸씩 돌아가요. 멈춘 칸이 골라져요
-const REEL_H = 34;
-function makeReel(labels, start, onSettle, cls = '') {
-  const n = labels.length, COPIES = 5, MID = 2 * n;
-  const el = document.createElement('div');
-  el.className = 'reel ' + cls;
-  el.tabIndex = 0;
-  el.setAttribute('role', 'spinbutton');
-  el.innerHTML = '<button type="button" class="rv up" aria-label="이전 칸">▴</button><div class="win"><div class="strip"></div></div><button type="button" class="rv dn" aria-label="다음 칸">▾</button>';
-  const strip = el.querySelector('.strip');
-  for (let c = 0; c < COPIES; c++) for (const t of labels) { const d = document.createElement('div'); d.className = 'cell'; d.textContent = t; strip.append(d); }
-  let pos = MID + start, spinning = false;
-  const place = (dur) => { strip.style.transition = dur ? `transform ${dur}s cubic-bezier(.15,.85,.25,1.12)` : 'none'; strip.style.transform = `translateY(${-pos * REEL_H}px)`; };
-  const norm = () => { pos = MID + (((pos - MID) % n) + n) % n; place(0); void strip.offsetHeight; };
-  place(0);
-  el.setAttribute('aria-valuetext', labels[start]);
-  const spin = (k, dur = 0.32) => {
-    if (!n) return;
-    norm();
-    pos += k;
-    spinning = true;
-    el.classList.add('spinning');
-    place(dur);
-    clearTimeout(el._t);
-    el._t = setTimeout(settle, dur * 1000 + 120); // 전환 끝 알림이 안 와도 멈추게
-  };
-  const settle = () => {
-    if (!spinning) return;
-    clearTimeout(el._t);
-    spinning = false;
-    el.classList.remove('spinning');
-    norm();
-    const i = pos - MID;
-    el.setAttribute('aria-valuetext', labels[i]);
-    el.classList.add('landed'); setTimeout(() => el.classList.remove('landed'), 260);
-    onSettle(i);
-  };
-  strip.addEventListener('transitionend', settle);
-  el.querySelector('.up').onclick = (e) => { e.stopPropagation(); spin(-1); };
-  el.querySelector('.dn').onclick = (e) => { e.stopPropagation(); spin(1); };
-  el.querySelector('.win').onclick = () => spin(1);
-  let wheelT = 0;
-  el.addEventListener('wheel', (e) => { e.preventDefault(); const now = performance.now(); if (now - wheelT < 140) return; wheelT = now; spin(e.deltaY > 0 ? 1 : -1); }, { passive: false });
-  el.addEventListener('keydown', (e) => { if (e.key === 'ArrowDown') { spin(1); e.preventDefault(); } if (e.key === 'ArrowUp') { spin(-1); e.preventDefault(); } });
-  let dragY = null;
-  el.addEventListener('pointerdown', (e) => { if (e.target.closest('.rv')) return; dragY = e.clientY; });
-  el.addEventListener('pointermove', (e) => { if (dragY == null) return; const dy = e.clientY - dragY; if (Math.abs(dy) > 18) { spin(dy < 0 ? 1 : -1); dragY = e.clientY; } });
-  addEventListener('pointerup', () => { dragY = null; });
-  el.spin = spin;
-  el.size = n;
-  el.cur = () => pos - MID;
-  return el;
 }
 // 말풍선 줄: 동작 단추처럼 다 펼쳐 둬요 → [자동 · 하나 · 없음] | 말풍선 5개 | ✎
 // 누른 말풍선 하나만 떠요. 지나가며 다른 말풍선이 뜨는 일이 없어요
@@ -1263,6 +1281,7 @@ $('#desk-form').addEventListener('submit', (e) => {
   // 비속어 · 나쁜 말은 저장하지 않아요
   for (const [k, m] of memos.entries()) { const w = findBad(m); if (w) { setDeskTab('memo'); showFormError(`말풍선 ${k + 1}에 쓸 수 없는 말이 있어요. 비속어 · 나쁜 말은 같은 층 모두에게 보이니 고쳐 주세요.`); $$('#pf-memos input')[k].focus(); return; } }
   for (const l of links) if (findBad(l.t + ' ' + l.d)) { setDeskTab('links'); showFormError('결과물 이름이나 설명에 쓸 수 없는 말이 있어요.'); return; }
+  const fresh = newLinks(S.profile, { links: links.slice(0, MAX_LINKS) });
   S.profile = { ...S.profile, memos, links: links.slice(0, MAX_LINKS) };
   store.set('profile', S.profile);
   if (S.memoMode === 'one' && !memos[S.memoIdx]?.trim()) S.memoIdx = Math.max(0, memos.findIndex((m) => m.trim()));
@@ -1270,7 +1289,9 @@ $('#desk-form').addEventListener('submit', (e) => {
   pushProfile();
   renderMemoBar();
   closeModal('desk-modal');
-  toast(bad ? `저장했어요. 주소가 이상한 결과물 ${bad}개는 뺐어요` : '저장했어요');
+  if (me) { if (fresh.length) markWebNew(me, () => S.profile, (u) => { S.webNew = u; }); else me.setWeb(webState(S.profile, S.webNew)); }
+  if (fresh.length) feed(S.name, `새 웹 결과물 '${fresh[0][0].t || '이름 없음'}'을 올렸습니다. 🌐`);
+  toast(bad ? `저장했어요. 주소가 이상한 결과물 ${bad}개는 뺐어요` : fresh.length ? '올렸어요 · 같은 층 모두에게 알림이 갔어요' : '저장했어요');
 });
 
 // 꾸미기 · 상점
@@ -1769,14 +1790,21 @@ $('#btn-sound').onclick = (e) => { e.stopPropagation(); setSoundOpen($('#sound-p
 $('#snd-close').onclick = () => setSoundOpen(false);
 document.addEventListener('pointerdown', (e) => { if (!$('#sound-pop').hidden && !e.target.closest('#sound-pop, #btn-sound')) setSoundOpen(false); });
 renderSound();
-// 지난번에 듣던 소리: 브라우저 규칙상 처음 한 번 누르거나 키를 칠 때 켜요
+// 들어오면 소리 켜기: 처음엔 로파이 + 키보드, 그다음부턴 설정에서 고른 소리.
+// 브라우저 규칙상 처음 누르거나 키를 칠 때 켜져요. 아이폰은 손가락을 뗄 때(click · touchend)만 소리를 허락해서
+// 여러 순간에 깨워 보고, 실제로 소리가 나기 시작하면 그만 들어요
 if ((snd.music || snd.amb) && !Q.has('mute') && store.get('autoSound', true)) {
+  const EVS = ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'];
+  let started = false;
   const wake = () => {
-    removeEventListener('pointerdown', wake, true); removeEventListener('keydown', wake, true);
-    if (snd.music) sound.setMusic(snd.music);
-    if (snd.amb) sound.setAmbient(snd.amb);
+    if (!started) {
+      started = true;
+      if (snd.music) sound.setMusic(snd.music);
+      if (snd.amb) sound.setAmbient(snd.amb);
+    } else sound.ensure();
+    if (sound.live) EVS.forEach((t) => removeEventListener(t, wake, true));
   };
-  addEventListener('pointerdown', wake, true); addEventListener('keydown', wake, true);
+  EVS.forEach((t) => addEventListener(t, wake, true));
 }
 $('#btn-menu').onclick = () => { $('#menu').hidden = !$('#menu').hidden; };
 $('#menu').addEventListener('click', (e) => {
@@ -1903,7 +1931,20 @@ async function renderPhotos() {
     el.append(b);
   }
 }
-$('#ph-save').onclick = () => { if (!phOpen) return; const a = document.createElement('a'); a.href = phOpen.u; a.download = `soho-lab-${phOpen.id}.png`; a.click(); };
+const isPhone = () => matchMedia('(pointer: coarse)').matches;
+// 휴대폰은 공유 창(사진에 저장)으로. 앱 안 브라우저(카톡 등)에서 파일 받기 링크를 누르면 사진만 뜬 화면으로 넘어가 멈춘 듯 보여요
+async function sharePhoto(blob, name) {
+  const file = new File([blob], name, { type: 'image/png' });
+  if (!navigator.canShare?.({ files: [file] })) return 'none';
+  try { await navigator.share({ files: [file] }); return 'ok'; } catch (e) { return e.name === 'AbortError' ? 'ok' : 'none'; }
+}
+function downloadPhoto(url, name) { const a = document.createElement('a'); a.href = url; a.download = name; a.click(); }
+$('#ph-save').onclick = async () => {
+  if (!phOpen) return;
+  const name = `soho-lab-${phOpen.id}.png`;
+  if (!isPhone()) return downloadPhoto(phOpen.u, name);
+  if (await sharePhoto(phOpen.blob, name) === 'none') toast('사진을 길게 눌러 저장해 주세요');
+};
 $('#ph-del').onclick = async () => { if (!phOpen || !confirm('이 사진을 지울까요?')) return; await removePhoto(phOpen.id); phOpen = null; closeModal('photo-modal'); renderPhotos(); };
 
 // 📷 사진 찍기: 단추를 모두 숨기고, 화면을 끌어 구도를 잡은 뒤 셔터. 휴대폰은 공유 창, 컴퓨터는 파일로 받기
@@ -1928,7 +1969,13 @@ function snapCanvas(maxSide = 0) {
   c.getContext('2d').drawImage(canvas, 0, 0, c.width, c.height);
   return c;
 }
+let shooting = false;   // 셔터 연타 막기: 한 장을 다 만들고 나서 다음 장
 async function takePhoto() {
+  if (shooting) return;
+  shooting = true;
+  try { await shootOnce(); } catch { toast('사진을 찍지 못했어요'); } finally { shooting = false; }
+}
+async function shootOnce() {
   const c = snapCanvas();
   const g = c.getContext('2d'), fs = Math.round(Math.max(c.width, c.height) / 52);
   g.font = `600 ${fs}px ${FONT}`;
@@ -1940,17 +1987,25 @@ async function takePhoto() {
   flash.classList.remove('on'); void flash.offsetWidth; flash.classList.add('on');
   const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
   if (!blob) { toast('사진을 찍지 못했어요'); return; }
-  await addPhoto(blob, `${S.floor}F ${office?.theme.name || ''}`);
-  photoCount++;
-  checkBadges();
+  const id = `${Date.now()}`;
+  // 내 기록에 모으기는 기다리지 않아요. 공유 창은 누른 직후에 열어야 해서 저장소 쓰기를 앞에 두면 막혀요
+  addPhoto(blob, `${S.floor}F ${office?.theme.name || ''}`, id).then((ok) => { if (ok) { photoCount++; checkBadges(); } });
   const name = `soho-lab-${dayKey(new Date())}-${Date.now().toString(36)}.png`;
-  const file = new File([blob], name, { type: 'image/png' });
-  if (matchMedia('(pointer: coarse)').matches && navigator.canShare?.({ files: [file] })) {
-    try { await navigator.share({ files: [file] }); return; } catch (e) { if (e.name === 'AbortError') return; }
+  if (isPhone()) {
+    if (await sharePhoto(blob, name) === 'ok') return;
+    // 공유 창이 없는 브라우저: 페이지를 떠나지 않고 크게 띄워서 길게 눌러 저장
+    const u = URL.createObjectURL(blob);
+    phUrls.push(u);
+    phOpen = { id, blob, u };
+    $('#ph-img').src = u;
+    $('#ph-title').textContent = '방금 찍은 사진';
+    openModal('photo-modal');
+    toast('사진을 길게 눌러 저장해 주세요 · 메뉴 › 내 기록에도 모여요');
+    return;
   }
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = name; a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  const u = URL.createObjectURL(blob);
+  downloadPhoto(u, name);
+  setTimeout(() => URL.revokeObjectURL(u), 5000);
   toast('사진을 저장했어요 · 메뉴 › 내 기록에도 모여요');
 }
 $('#btn-photo').onclick = startPhoto;

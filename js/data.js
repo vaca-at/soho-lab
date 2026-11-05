@@ -257,13 +257,19 @@ export const ACTIONS = [
   { id: 't_window', name: '바람 쐬기', cap: '창가에서 기지개', trip: 'window', pose: 'window', feed: '창가로 바람 쐬러 갔습니다.' },
   { id: 't_fridge', name: '냉장고 가기', cap: '음료 무제한 무료', fridge: true },
   { id: 't_sofa', name: '소파에 앉기', cap: '라운지에서 쉬기', sofa: true },
-  // 냉장고 음료 (웰치스 포도 · 콜라 · 사이다 무제한 무료). 냉장고를 누르면 고르는 창이 떠요
+  // 냉장고 음료 (캔: 웰치스 포도 · 콜라 · 사이다, 페트병: 생수 · 보리차 · 녹차 무제한 무료). 냉장고를 누르면 고르는 창이 떠요
   { id: 't_grape', name: '웰치스 포도', hidden: true, trip: 'fridge', pose: 'can_grape', feed: '냉장고에서 웰치스 포도를 꺼냈습니다. 🍇' },
   { id: 't_cola', name: '콜라', hidden: true, trip: 'fridge', pose: 'can_cola', feed: '냉장고에서 콜라를 꺼냈습니다. 🥤' },
   { id: 't_cider', name: '사이다', hidden: true, trip: 'fridge', pose: 'can_cider', feed: '냉장고에서 사이다를 꺼냈습니다. 🫧' },
+  { id: 't_pwater', name: '생수', hidden: true, trip: 'fridge', pose: 'pet_water', feed: '냉장고에서 생수를 꺼냈습니다. 💧' },
+  { id: 't_barley', name: '보리차', hidden: true, trip: 'fridge', pose: 'pet_barley', feed: '냉장고에서 보리차를 꺼냈습니다. 🌾' },
+  { id: 't_gtea', name: '녹차', hidden: true, trip: 'fridge', pose: 'pet_gtea', feed: '냉장고에서 녹차를 꺼냈습니다. 🍵' },
   { id: 'can_grape', pose: true, dur: 4 },
   { id: 'can_cola', pose: true, dur: 4 },
   { id: 'can_cider', pose: true, dur: 4 },
+  { id: 'pet_water', pose: true, dur: 4 },
+  { id: 'pet_barley', pose: true, dur: 4 },
+  { id: 'pet_gtea', pose: true, dur: 4 },
   // 도착해서 하는 자세 (막대에 안 나옴)
   { id: 'pour', pose: true, dur: 4 },
   { id: 'print', pose: true, dur: 4 },

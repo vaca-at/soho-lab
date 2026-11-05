@@ -37,20 +37,36 @@ function roundRect(g, x, y, w, h, r) {
   if (g.roundRect) g.roundRect(x, y, w, h, r); else g.rect(x, y, w, h);
 }
 
-function nameTag(text, mine) {
+// web: 0 결과물 없음 · 1 웹 결과물 있음(🌐) · 2 방금 올림(🌐 NEW, 민트 테두리)
+function nameTag(text, mine, web = 0) {
   const c = document.createElement('canvas');
   c.width = 512; c.height = 96;
   const g = c.getContext('2d');
   g.font = `600 38px ${FONT}`;
-  const w = Math.min(500, g.measureText(text).width + 48);
+  const chipW = web === 2 ? 118 : web ? 50 : 0;
+  const lead = chipW ? 10 + chipW + 12 : 24;   // 이름 앞 여백 (칩이 있으면 칩 + 틈)
+  const tw = Math.min(500 - lead - 24, g.measureText(text).width);
+  const w = lead + tw + 24;
   const x = (512 - w) / 2;
   g.fillStyle = mine ? 'rgba(14, 18, 28, 0.82)' : 'rgba(14, 18, 28, 0.58)';
   roundRect(g, x, 14, w, 64, 32);
   g.fill();
-  if (mine) { g.strokeStyle = '#ffb35c'; g.lineWidth = 4; g.stroke(); }
+  if (web === 2) { g.save(); g.shadowColor = '#5fd3a8'; g.shadowBlur = 14; g.strokeStyle = '#5fd3a8'; g.lineWidth = 5; g.stroke(); g.restore(); }
+  else if (mine) { g.strokeStyle = '#ffb35c'; g.lineWidth = 4; g.stroke(); }
+  if (chipW) {
+    // 이름 앞 작은 칩: 🌐 (방금 올렸으면 🌐 NEW, 민트 바탕)
+    const cx = x + 10;
+    g.fillStyle = web === 2 ? '#5fd3a8' : 'rgba(95, 211, 168, 0.22)';
+    roundRect(g, cx, 22, chipW, 48, 24); g.fill();
+    g.textBaseline = 'middle'; g.textAlign = 'left'; g.fillStyle = '#fff';
+    g.font = `30px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+    g.fillText('🌐', cx + 9, 48);
+    if (web === 2) { g.fillStyle = '#0d2a20'; g.font = `800 24px ${FONT}`; g.fillText('NEW', cx + 50, 48); }
+    g.font = `600 38px ${FONT}`;
+  }
   g.fillStyle = '#f6f3ec';
   g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText(text, 256, 47);
+  g.fillText(text, x + lead + tw / 2, 47, tw);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false, transparent: true }));
@@ -138,6 +154,7 @@ function actionPose(action, t, base) {
     case 'print': // 프린터 위 버튼을 톡톡, 종이를 집어요
       return mix(base, { aR: [-0.9 - Math.abs(Math.sin(t * 6)) * 0.25, -0.1], aL: [-0.6, 0.2], head: 0.3, hip: 0.12 }, bump(t, 0, 0.4, 3.6, 4));
     case 'can_grape': case 'can_cola': case 'can_cider':
+    case 'pet_water': case 'pet_barley': case 'pet_gtea':
     case 'drink': {
       const sip = bump(t, 0.5, 1.1, 2.6, 3.2);
       return mix(base, { aR: [-0.9 - sip * 1.0, -0.15 - sip * 0.25], head: -0.12 * sip }, bump(t, 0, 0.4, 3.2, 3.6));
@@ -181,9 +198,16 @@ export class Avatar {
   setName(name) {
     if (this.tag) { this.group.remove(this.tag); this.tag.material.map.dispose(); this.tag.material.dispose(); }
     this.name = name;
-    this.tag = nameTag(name, this.mine);
+    this.tag = nameTag(name, this.mine, this.web || 0);
     this.tag.position.y = this.tagY;
     this.group.add(this.tag);
+  }
+
+  // 이름표의 웹 결과물 표시 (0 없음 · 1 있음 · 2 방금 올림)
+  setWeb(web) {
+    if ((this.web || 0) === web) return;
+    this.web = web;
+    if (this.tag) { const vis = this.tag.visible; this.setName(this.name); this.tag.visible = vis; }
   }
 
   makeBubble() {
@@ -306,6 +330,20 @@ export class Avatar {
       can.visible = false;
       this.armR.add(can);
       this.cans[id] = can;
+    }
+    // 냉장고 페트병 (생수 · 보리차 · 녹차): 비치는 몸통 속 음료 색, 가운데 띠 상표, 병목 · 뚜껑
+    for (const [id, drink, label, cap] of [['pet_water', '#d6eef9', '#2f7fd0', '#2f7fd0'], ['pet_barley', '#a8672a', '#efe2bf', '#7a4a1e'], ['pet_gtea', '#b9cf63', '#2f8a4a', '#2f8a4a']]) {
+      const pet = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.2, 18), mat(drink, { transparent: true, opacity: 0.78, roughness: 0.15 }));
+      body.castShadow = true; pet.add(body);
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.0515, 0.0515, 0.08, 18), mat(label, { roughness: 0.5 })); band.position.y = -0.01; pet.add(band);
+      const shoulder = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.05, 0.05, 18), mat(drink, { transparent: true, opacity: 0.78, roughness: 0.15 })); shoulder.position.y = 0.125; pet.add(shoulder);
+      const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.035, 14), mat(cap, { roughness: 0.4 })); lid.position.y = 0.167; pet.add(lid);
+      pet.position.set(0, this.handY - 0.12, 0.08);
+      pet.scale.setScalar(1.6);
+      pet.visible = false;
+      this.armR.add(pet);
+      this.cans[id] = pet;
     }
 
     body.traverse((o) => { if (o.isMesh) o.castShadow = true; });

@@ -2,13 +2,16 @@
 // 브라우저 방문 기록 · 사이트 데이터를 지우면 함께 지워져요
 const DB = 'soho-lab-album', STORE = 'photos', MAX = 60;
 
+// 연결은 한 번 열어 두고 같이 써요 (찍을 때마다 새로 열면 휴대폰에서 연결이 쌓여요)
+let dbp = null;
 function open() {
-  return new Promise((res, rej) => {
+  dbp ||= new Promise((res, rej) => {
     const r = indexedDB.open(DB, 1);
     r.onupgradeneeded = () => r.result.createObjectStore(STORE, { keyPath: 'id' });
-    r.onsuccess = () => res(r.result);
+    r.onsuccess = () => { const db = r.result; db.onclose = () => { dbp = null; }; res(db); };
     r.onerror = () => rej(r.error);
-  });
+  }).catch((e) => { dbp = null; throw e; });
+  return dbp;
 }
 function tx(mode, fn) {
   return open().then((db) => new Promise((res, rej) => {
@@ -16,12 +19,12 @@ function tx(mode, fn) {
     const out = fn(st);
     t.oncomplete = () => res(out?.result ?? out);
     t.onerror = () => rej(t.error);
+    t.onabort = () => rej(t.error);   // 저장 공간이 모자라면 abort 로 끝나요
   }));
 }
 
-export async function addPhoto(blob, place) {
+export async function addPhoto(blob, place, id = `${Date.now()}`) {
   try {
-    const id = `${Date.now()}`;
     await tx('readwrite', (st) => st.put({ id, at: Date.now(), place, blob }));
     // 너무 많으면 오래된 것부터 정리
     const all = await listPhotos();

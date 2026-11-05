@@ -66,6 +66,18 @@ export class Sound {
       }
     });
   }
+  // 알림: 짧고 맑은 '딩동' 위로 (새 웹 결과물)
+  ding() {
+    if (!this.live) return;
+    const c = this.ctx, t0 = c.currentTime + 0.02;
+    [[1046.5, 0], [1568, 0.12]].forEach(([f, dt]) => {
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0, t0 + dt); g.gain.linearRampToValueAtTime(0.12, t0 + dt + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + 0.9);
+      o.connect(g); g.connect(this.out);
+      o.start(t0 + dt); o.stop(t0 + dt + 1);
+    });
+  }
   // 폭죽: 슝 — 펑 (지글지글)
   pop(delay = 0.8) {
     if (!this.live) return;

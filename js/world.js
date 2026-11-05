@@ -290,6 +290,14 @@ const ITEM = {
     for (const s of [1, -1]) { const e = box(g, '#e9a25a', 0.05, 0.06, 0.03, 0.055 * s, 0.29, 0.01); e.rotation.z = -0.4 * s; box(g, '#1d1a18', 0.025, 0.03, 0.01, 0.04 * s, 0.21, 0.076); }
     box(g, '#f6e6cf', 0.06, 0.03, 0.01, 0, 0.175, 0.076); box(g, '#e9a25a', 0.03, 0.03, 0.14, 0.06, 0.03, -0.1);
   },
+  // 보조의자: 바닥에 놓는 동그란 스툴 (손님용), 방석 · 다리 넷 · 발 받침 링
+  stool(g) {
+    const seat = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.07, 20), mat('#d98a4a', { roughness: 0.9 }));
+    seat.position.y = 0.47; seat.castShadow = true; g.add(seat);
+    const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.195, 0.195, 0.02, 20), mat('#8a5a3a')); rim.position.y = 0.43; g.add(rim);
+    for (const [x, z] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) { const l = box(g, '#8a5a3a', 0.035, 0.44, 0.035, x * 0.12, 0.21, z * 0.12); l.rotation.set(-z * 0.08, 0, x * 0.08); }
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.135, 0.012, 6, 20), mat('#6a4a30')); ring.rotation.x = Math.PI / 2; ring.position.y = 0.16; g.add(ring);
+  },
   // 물고기 봉제인형: 꼬리로 서 있는 통통한 초록 물고기 (소호랩 자체 인형)
   fishdoll(g) {
     const G = '#5fae8a', D = '#3f8a6a', B = '#e9f2d8';
@@ -589,6 +597,7 @@ export function dressDesk(seat, deck) {
     const def = DESK_ITEMS.find((x) => x.id === id);
     if (!def) continue;
     if (def.spot === 'chair') { chairItem(chair, id, kind); continue; }
+    if (def.spot === 'floor') { const fg = new THREE.Group(); fg.position.set(0.95, 0, SIT + 0.05); ITEM[id]?.(fg, 1, seat.anims); g.add(fg); continue; }   // 바닥: 내 의자 오른쪽
     if (id === 'postit') {
       for (const [k, c] of ['#ffe57a', '#ff9fb2', '#9fe0c0'].entries()) {
         const p = box(m0.group, c, 0.09, 0.09, 0.004, m0.w / 2 - 0.06 - k * 0.1, m0.top - 0.1 - (k % 2) * 0.03, 0.045);

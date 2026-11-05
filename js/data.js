@@ -209,6 +209,7 @@ export const DESK_ITEMS = [
   { id: 'fan', name: '탁상 선풍기', cap: '살랑살랑 돌아가요', price: 50, lv: 1, tier: 1 },
   { id: 'humidifier', name: '가습기', cap: '촉촉한 김이 모락모락', price: 70, lv: 1, tier: 1 },
   { id: 'blanket', name: '무릎담요', cap: '의자에 걸쳐 둔 체크 담요', price: 80, lv: 1, tier: 1, spot: 'chair' },
+  { id: 'stool', name: '보조의자', cap: '내 의자 옆, 손님용 동그란 의자', price: 150, lv: 2, tier: 1, spot: 'floor' },
   { id: 'cushion', name: '따뜻한 방석', cap: '의자 위 온열 방석, 빨간 불', price: 120, lv: 2, tier: 1, spot: 'chair' },
   { id: 'catdoll', name: '고양이 인형', price: 80, lv: 2, tier: 1 },
   { id: 'fishdoll', name: '물고기 봉제인형', cap: '통통한 초록 물고기, 말랑말랑', price: 80, lv: 2, tier: 1 },

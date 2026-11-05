@@ -298,6 +298,15 @@ const ITEM = {
     for (const [x, z] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) { const l = box(g, '#8a5a3a', 0.035, 0.44, 0.035, x * 0.12, 0.21, z * 0.12); l.rotation.set(-z * 0.08, 0, x * 0.08); }
     const ring = new THREE.Mesh(new THREE.TorusGeometry(0.135, 0.012, 6, 20), mat('#6a4a30')); ring.rotation.x = Math.PI / 2; ring.position.y = 0.16; g.add(ring);
   },
+  // 보조 모니터: 지금 모니터는 그대로 두고 책상 왼쪽에 하나 더 (코드 화면)
+  submon(g) {
+    box(g, '#2a2c33', 0.17, 0.012, 0.11, 0, 0.006, 0);
+    box(g, '#2a2c33', 0.035, 0.12, 0.03, 0, 0.066, -0.02);
+    box(g, '#16181e', 0.41, 0.27, 0.025, 0, 0.235, 0);
+    const sc = new THREE.Mesh(new THREE.PlaneGeometry(0.38, 0.24), new THREE.MeshBasicMaterial({ map: demoScreen(), toneMapped: false }));
+    sc.position.set(0, 0.235, 0.0135);
+    g.add(sc);
+  },
   // 물고기 봉제인형: 꼬리로 서 있는 통통한 초록 물고기 (소호랩 자체 인형)
   fishdoll(g) {
     const G = '#5fae8a', D = '#3f8a6a', B = '#e9f2d8';
@@ -593,7 +602,9 @@ export function dressDesk(seat, deck) {
   // 소품: 고른 순서대로 빈자리에. 모니터 · 의자 · 칸막이에 붙는 것은 따로
   let slot = 0;
   const m0 = mons[0];
-  for (const id of d.it || []) {
+  // 보조 모니터는 언제나 왼쪽 뒤 첫 칸에
+  const its = [...(d.it || [])].sort((a, b) => (b === 'submon') - (a === 'submon'));
+  for (const id of its) {
     const def = DESK_ITEMS.find((x) => x.id === id);
     if (!def) continue;
     if (def.spot === 'chair') { chairItem(chair, id, kind); continue; }

@@ -219,7 +219,7 @@ function cleanProfile(d) {
     n: name,
     look,
     memos: (Array.isArray(d.memos) ? d.memos : []).slice(0, 5).map((m) => clean(m, 30)),
-    links: (Array.isArray(d.links) ? d.links : []).slice(0, 3).map((l) => ({ t: clean(l?.t, 24), u: safeUrl(l?.u), d: clean(l?.d, 60) })).filter((l) => l.u),
+    links: (Array.isArray(d.links) ? d.links : []).slice(0, 3).map((l) => ({ t: clean(l?.t, 24), u: safeUrl(l?.u), d: clean(l?.d, 60), at: Math.max(0, Math.min(Date.now(), Math.round(+l?.at) || 0)) })).filter((l) => l.u),
     desk: { c: id(dk.c, 'oak'), ch: id(dk.ch, 'charcoal'), mon: id(dk.mon, 'm'), kb: id(dk.kb, 'basic'), chair: id(dk.chair, 'basic'), it: (Array.isArray(dk.it) ? dk.it : []).slice(0, 16).filter((x) => ID.test(x)) },
     mm: ['auto', 'one', 'off'].includes(d.mm) ? d.mm : 'auto',
     mi: Math.max(0, Math.min(4, d.mi | 0)),

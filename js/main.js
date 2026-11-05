@@ -502,6 +502,25 @@ function feedNewBtn(el) {
   if (!el._feedBound) { el._feedBound = true; el.addEventListener('scroll', () => { const nb = el.querySelector('.feed-new'); if (nb && feedAtEnd(el)) nb.hidden = true; }, { passive: true }); }
   return b;
 }
+// 옆으로 넘기는 줄(동작 · 말풍선): 더 있는 쪽 끝을 흐리게 해서 넘길 수 있다는 걸 보여 줘요
+function scrollHint(el) {
+  if (!el) return;
+  const upd = () => {
+    const l = el.scrollLeft > 2, r = el.scrollLeft + el.clientWidth < el.scrollWidth - 2;
+    el.dataset.more = (l ? 'l' : '') + (r ? 'r' : '');
+  };
+  el.addEventListener('scroll', upd, { passive: true });
+  if ('ResizeObserver' in window) new ResizeObserver(upd).observe(el);
+  new MutationObserver(upd).observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden'] });
+  upd();
+}
+scrollHint(document.getElementById('actions'));
+scrollHint(document.getElementById('memo-bar'));
+// 알림 기록은 왼쪽 위 칩들 바로 아래에서 시작해요 (좁은 화면에서 칩이 두 줄이 돼도 안 겹치게)
+{
+  const top = document.querySelector('.hud-left');
+  if (top && 'ResizeObserver' in window) new ResizeObserver(() => document.documentElement.style.setProperty('--hud-top-h', `${top.getBoundingClientRect().bottom + 8}px`)).observe(top);
+}
 function feedLine(text) {
   const el = $("#feed");
   const btn = feedNewBtn(el);
@@ -751,7 +770,14 @@ function pushProfile() { net.sendProfile(myPf()); if (S.seat >= 0) refreshScreen
 // ───────── 같은 층 사람들 ─────────
 // 🌐 웹 결과물 알림: 같은 층 누가 새 주소를 올리면 알림 카드 + 이름표에 🌐 NEW (10분)
 const WEB_NEW_MS = 10 * 60 * 1000;
-const webState = (pf, until = 0) => (pf?.links?.length ? (until > Date.now() ? 2 : 1) : 0);
+// 주소마다 올린 시각(at)이 있어서, 나중에 들어온 사람도 10분 안에 올린 결과물엔 NEW가 보여요
+const webNewest = (pf) => Math.max(0, ...(pf?.links || []).map((l) => +l.at || 0));
+const webState = (pf, until = 0) => (pf?.links?.length ? (Math.max(until, webNewest(pf) + WEB_NEW_MS) > Date.now() ? 2 : 1) : 0);
+// 10분이 지나면 NEW를 떼요 (30초마다 확인)
+setInterval(() => {
+  for (const p of S.peers.values()) p.av?.setWeb(webState(p.pf, p.webNew));
+  me?.setWeb(webState(S.profile, S.webNew));
+}, 30000);
 // 예전에 없던 주소만 '새 결과물' (제목 · 설명만 고친 건 알리지 않아요)
 function newLinks(before, after) {
   const had = new Set((before?.links || []).map((l) => l.u));
@@ -1323,7 +1349,9 @@ $('#desk-form').addEventListener('submit', (e) => {
     if (!raw) continue;
     const u = safeUrl(raw);
     if (!u) { bad++; continue; }
-    links.push({ t: row.querySelector('.t').value.trim().slice(0, LIMITS.title), u, d: row.querySelector('.desc').value.trim().slice(0, LIMITS.desc) });
+    // 올린 시각: 전에 있던 주소면 그대로, 새 주소면 지금
+    const at = (S.profile.links || []).find((o) => o.u === u)?.at || Date.now();
+    links.push({ t: row.querySelector('.t').value.trim().slice(0, LIMITS.title), u, d: row.querySelector('.desc').value.trim().slice(0, LIMITS.desc), at });
   }
   // 비속어 · 나쁜 말은 저장하지 않아요
   for (const [k, m] of memos.entries()) { const w = findBad(m); if (w) { setDeskTab('memo'); showFormError(`말풍선 ${k + 1}에 쓸 수 없는 말이 있어요. 비속어 · 나쁜 말은 같은 층 모두에게 보이니 고쳐 주세요.`); $$('#pf-memos input')[k].focus(); return; } }

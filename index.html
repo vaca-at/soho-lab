@@ -320,6 +320,7 @@
     <button data-menu="stats">📊 내 기록 보기</button>
     <button data-menu="prefs">⚙️ 개인 및 환경 설정</button>
     <button data-menu="guide">📖 소호랩 사용법</button>
+    <button type="button" onclick="document.getElementById('menu').hidden=true;window.moontrHelp&&moontrHelp.open()">💬 문의하기</button>
     <button data-menu="report" class="menu-report">🚨 신고하기</button>
     <a class="menu-admin" href="admin.html" target="_blank" rel="noopener">관리자</a>
   </div>
@@ -374,5 +375,6 @@
 </section>
 
 <script type="module" src="js/main.js?v=20261106b"></script>
+<script src="https://moontr.site/help.js" data-app="soholab" defer></script>
 </body>
 </html>

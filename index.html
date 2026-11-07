@@ -200,7 +200,8 @@
 <div id="floor-modal" class="modal" hidden>
   <div class="sheet">
     <header class="panel-head"><h2>엘리베이터</h2><button class="icon-btn" data-close="floor-modal" aria-label="닫기">✕</button></header>
-    <p class="sub">층마다 책상 20개, 20명까지 들어가요. 어느 층이든 똑같은 사무실이에요.</p>
+    <p class="sub">층 하나가 서버 하나예요. 서버 10개(1~10층) · 층마다 책상 20개, 20명까지 들어가요.</p>
+    <p id="floor-now" class="floor-now"></p>
     <div id="floor-grid" class="floor-grid"></div>
     <p id="floor-note" class="muted small"></p>
   </div>
@@ -317,6 +318,7 @@
     <button data-menu="btn-store" class="m-only m-tab">🛒 상점</button>
     <button data-menu="btn-web" class="m-only">🌐 내 웹 자랑</button>
     <button data-menu="btn-photo" class="m-only m-tab m-last">📷 사진 찍기</button>
+    <button data-menu="floors">🛗 서버(층) 고르기 · 지금 내 자리</button>
     <button data-menu="stats">📊 내 기록 보기</button>
     <button data-menu="prefs">⚙️ 개인 및 환경 설정</button>
     <button data-menu="guide">📖 소호랩 사용법</button>

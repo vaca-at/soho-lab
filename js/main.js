@@ -1368,6 +1368,7 @@ function toast(text, ms = 3200) {
 async function openFloors() {
   openModal('floor-modal');
   const grid = $('#floor-grid');
+  $('#floor-now').textContent = S.entered ? `지금 내 자리 · ${S.floor}층(서버 ${S.floor}) · ${THEMES.find((t) => t.id === themeFor(S.floor))?.name || ''}${S.seat >= 0 ? ` · ${S.seat + 1}번 책상` : ''}` : '아직 들어가기 전이에요. 들어갈 층을 골라 주세요';
   const draw = (counts) => {
     grid.innerHTML = '';
     for (let f = 1; f <= FLOORS; f++) {
@@ -2027,6 +2028,7 @@ $('#menu').addEventListener('click', (e) => {
   $('#menu').hidden = true;
   const m = b.dataset.menu;
   if (m === 'guide') openModal('guide-modal');
+  if (m === 'floors') openFloors();
   if (m === 'stats') openStats();
   if (m === 'prefs') openPrefs();
   if (m === 'report') openReport();

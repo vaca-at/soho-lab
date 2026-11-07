@@ -14,7 +14,7 @@ export const SITE = 'https://soho-lab.site';
 export const FLOORS = 10; // 서버 = 층. 1층부터 10층까지
 export const SEATS = 20; // 층마다 책상 20개, 20명까지
 // 층마다 사무실 테마 (world.js 의 THEMES id). 1층부터 차례로
-export const FLOOR_THEMES = ['loft', 'class', 'lab', 'forest', 'nordic', 'hanok', 'space', 'cafe', 'library', 'beach'];
+export const FLOOR_THEMES = ['loft', 'class', 'lab', 'forest', 'nordic', 'hanok', 'space', 'beach', 'library', 'cafe']; // 10층 = 맨 위 루프탑 카페 (2026-11-08 8층과 바꿈)
 // 주소에 층(?f=)이 없이 들어오면 모두 이 층으로 (3층 = 학교 전산실). 다 찼으면 사람이 많은 다른 층으로
 export const START_FLOOR = 3;
 export const MAX_MEMOS = 5; // 머리 위 메모 (첫 번째 메모가 '지금 하는 일'처럼 모니터 아래 줄에도 떠요)

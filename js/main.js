@@ -2598,7 +2598,7 @@ function updateMe(dt) {
   me.speed = speed;
   me.update(dt, ACTIONS);
   sendT += dt;
-  if (sendT > 0.15) { sendT = 0; sendState(false); }
+  if (sendT > 0.3) { sendT = 0; if (!document.hidden) sendState(false); }   // 0.3초마다, 다른 탭이면 안 보내요 (Cloudflare 무료 한도 절약)
 }
 
 // ───────── 시작: 로딩 화면 → 바로 출근 ─────────
